@@ -5,3 +5,9 @@ __pycache__/
 venv/
 *.log
 .DS_Store
+
+# Probe/debug output (contains scraped profile data)
+*_probe*.png
+*_probe*.txt
+debug_*.png
+debug_*.txt

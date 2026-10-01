@@ -1,0 +1,43 @@
+# Swipe rubric — criteria the AI judges each profile against.
+# Everything here is auto-decided. Anything NOT here is decided by you
+# in the review queue (see review_queue.py).
+
+age:
+  min: 26
+  max: 34
+
+distance_km_max: 20
+
+language:
+  required_any: [french, english]
+  prefer: french
+  # If no language is stated on the profile, assume French (Paris-based).
+  assume_if_unstated: french
+
+smoking:
+  # Disabled. Not a dealbreaker either way.
+  reject_if_anti_smoking: false
+
+drinking:
+  # Disabled. Non-drinkers are fine.
+  reject_if_teetotal: false
+
+height:
+  # Only applied when height is explicitly stated on the profile.
+  # Unstated = no filter, do not guess from photos.
+  max_cm_if_stated: 173
+
+body_type:
+  reject_obese: true
+
+profile_quality:
+  min_photos: 2
+  require_some_bio_or_prompt: true
+  # Skip accounts that look inactive / abandoned
+  max_days_inactive: 30
+
+# --- Not automated ---
+# Ethnicity preference is NOT evaluated by the model. Profiles that pass
+# everything above go to the review queue for a 2-second visual yes/no
+# from you before any swipe is spent.
+manual_review_required: true

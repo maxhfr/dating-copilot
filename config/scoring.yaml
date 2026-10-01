@@ -1,0 +1,99 @@
+# Scoring weights. Stage 2 only — every profile here has already passed
+# the hard filters in rubric.yaml.
+#
+# Score is 0-100, split 70 photo / 30 text.
+# Auto-like at or above auto_like, pass below.
+
+thresholds:
+  auto_like: 58      # tune this after reading the first digest
+
+# ============================================================
+# PHOTO — 70 points
+# ============================================================
+
+body_type:
+  max: 30
+  scores:
+    average: 30
+    athletic: 26
+    slim: 22
+    slightly_curvy: 14
+    very_curvy: 4
+    obese: -999      # hard reject, overrides everything
+
+hair:
+  max: 16
+  scores:
+    blonde: 16
+    light_brown: 8
+    brown: 5
+    red: 5
+    black: 4
+    other: 4
+
+eyes:
+  max: 12
+  scores:
+    blue: 12
+    green: 7
+    hazel: 5
+    brown: 4
+    unclear: 5       # don't punish bad lighting
+
+photo_style:
+  max: 5
+  scores:
+    everyday_life: 5
+    mixed: 4
+    travel_heavy: 2
+    all_posed_studio: 1
+
+photo_variety:
+  max: 4
+  scores:
+    varied: 4
+    somewhat_varied: 3
+    repetitive: 1
+
+filters:
+  max: 3
+  scores:
+    natural: 3
+    light_editing: 2
+    heavy_filters: 0   # a negative, not a dealbreaker
+
+# ============================================================
+# TEXT — 30 points
+# ============================================================
+
+bio_effort:
+  max: 12
+  scores:
+    substantial: 12    # real answers, personality visible
+    moderate: 8
+    minimal: 3
+    empty: 0
+
+shared_interests:
+  max: 12
+  # Overlap with: cooking (esp. Asian food), music (wide range, drum &
+  # bass, French rap), climbing / gym, animals and cats, film, wine,
+  # football, wanting a place outside Paris one day.
+  scores:
+    strong: 12         # two or more real overlaps
+    some: 8
+    slight: 4
+    none: 0
+
+intent_fit:
+  max: 6
+  # He's looking to build something with someone, not casual.
+  scores:
+    clearly_serious: 6
+    open_unstated: 4   # most profiles — don't punish silence
+    ambiguous: 2
+    clearly_casual: 0
+
+# --- Explicitly NOT scored ---
+# Ethnicity, race, and national origin are not inputs to this score and
+# must not be inferred or referenced by the model.

@@ -24,6 +24,7 @@ with open("config/scoring.yaml") as f:
     WEIGHTS = yaml.safe_load(f)
 
 AUTO_LIKE = WEIGHTS["thresholds"]["auto_like"]
+DEBUG = os.environ.get("JUDGE_DEBUG") == "1"
 
 NO_ETHNICITY = (
     "Do NOT infer, evaluate, comment on, or reference ethnicity, race, "
@@ -38,14 +39,41 @@ STAGE1_SYSTEM = f"""You apply hard filters to dating profile text. No images.
 FILTERS:
 {yaml.dump(RUBRIC, allow_unicode=True)}
 
+CRITICAL: You may reject on EXACTLY TWO grounds, nothing else:
+
+  1. language        — positive evidence she speaks neither French nor English
+  2. profile_quality — genuinely empty profile (see below)
+
+Smoking and drinking are NO LONGER filters. Whatever she smokes or
+drinks, or doesn't, is irrelevant. Never reject on them.
+
+Age, distance and height are handled in code before you see this.
+
+Relationship intent, pets, exercise, children, education, religion,
+politics, job, astrology and everything else are NOT grounds for
+rejection. They are scored separately afterwards. If you are tempted to
+reject for any reason not in the numbered list above, the answer is
+"pass".
+
+Relationship intent, pets, exercise, children, education, religion,
+politics and every other field are NOT hard filters. They are scored
+separately later. Never reject on them. If a profile passes the seven
+filters above, the verdict is "pass" — even if other things look like a
+poor match.
+
 Rules:
-- Age / distance / height: numeric, from stated values only. Never guess.
-  Height applies only when explicitly written on the profile.
+- Age, distance and height have ALREADY been checked in code before you
+  see this profile. Do NOT evaluate them. Do NOT reject on them.
+- The "lifestyle" object holds Tinder's structured fields. Trust it over
+  anything inferred from prose.
 - Language: assume French unless there's positive evidence she speaks
   neither French nor English.
 - Smoking: reject ONLY on explicit anti-smoking statements.
 - Drinking: reject ONLY if she states she doesn't drink.
-- Profile quality: reject if under 2 photos, or no bio AND no prompts.
+- Profile quality: the "bio" field concatenates her free text AND her
+  answered prompts, separated by " | ". Reject as low-effort ONLY if bio
+  is empty or under ~15 characters AND the lifestyle object is empty.
+  An answered prompt counts as effort. Filled lifestyle fields count too.
 - Silence is always a pass. Absence of information is never a rejection.
 
 {NO_ETHNICITY}
@@ -59,11 +87,16 @@ Also score the TEXT categories from scoring.yaml:
   a house outside Paris eventually. "strong" needs two or more genuine
   overlaps, not one vague match.
 - intent_fit: he wants something serious. Most profiles say nothing —
-  that's "open_unstated" and must NOT be punished.
+  that's "open_unstated" and must NOT be punished. A clearly casual
+  intent scores 0 here; it is NOT a rejection.
 
 {NO_ETHNICITY}
 
-Return ONLY JSON, no fence:
+OUTPUT FORMAT — this is strict. Respond with a single JSON object and
+NOTHING else. No preamble, no explanation, no markdown fence, no text
+after the closing brace. Your entire reply must start with {{ and end
+with }}. Keep "failed" entries to short field names, not sentences.
+
 {{"verdict":"pass"|"reject","failed":["..."],
   "bio_effort":"substantial"|"moderate"|"minimal"|"empty",
   "shared_interests":"strong"|"some"|"slight"|"none",
@@ -109,18 +142,67 @@ def _call(system, content, max_tokens=500):
         messages=[{"role": "user", "content": content}],
     )
     text = "".join(b.text for b in resp.content if b.type == "text")
+    if DEBUG:
+        print(f"  -- raw model output: {text[:500]}")
     text = text.replace("```json", "").replace("```", "").strip()
-    return json.loads(text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # The model sometimes wraps the object in prose. Take the outermost
+        # {...} block and try again.
+        start, end = text.find("{"), text.rfind("}")
+        if start != -1 and end > start:
+            return json.loads(text[start:end + 1])
+        raise
+
+
+def _media_type(b64: str) -> str:
+    """Sniff the real format instead of trusting the caller. PNG starts
+    iVBORw0 in base64; JPEG starts /9j/."""
+    if b64.startswith("iVBORw0"):
+        return "image/png"
+    if b64.startswith("/9j/"):
+        return "image/jpeg"
+    if b64.startswith("R0lGOD"):
+        return "image/gif"
+    if b64.startswith("UklGR"):
+        return "image/webp"
+    return "image/jpeg"
+
+
+def _hard_filters(profile: dict) -> list[str]:
+    """Deterministic numeric filters. The model is not asked to do these —
+    it kept rejecting profiles that were actually inside the range."""
+    failed = []
+    age = profile.get("age")
+    if age is not None and not (RUBRIC["age"]["min"] <= age <= RUBRIC["age"]["max"]):
+        failed.append(f"age {age}")
+
+    dist = profile.get("distance_km")
+    if dist is not None and dist > RUBRIC["distance_km_max"]:
+        failed.append(f"distance {dist}km")
+
+    h = profile.get("stated_height_cm")
+    if h is not None and h > RUBRIC["height"]["max_cm_if_stated"]:
+        failed.append(f"height {h}cm")
+    return failed
 
 
 def stage1_filter(profile: dict) -> dict:
     """Text only. Cheap. Runs on everything."""
+    numeric_fail = _hard_filters(profile)
+    if numeric_fail:
+        return {"verdict": "reject", "failed": numeric_fail}
+
     payload = {k: v for k, v in profile.items() if k != "photos"}
     try:
         return _call(STAGE1_SYSTEM,
                      [{"type": "text", "text": json.dumps(payload, ensure_ascii=False)}],
-                     max_tokens=400)
-    except (json.JSONDecodeError, KeyError):
+                     max_tokens=700)
+    except Exception as e:
+        if DEBUG:
+            print(f"  !! stage1 parse failed: {type(e).__name__}: {e}")
+            print(f"  !! payload was: {json.dumps(payload, ensure_ascii=False)[:400]}")
         return {"verdict": "reject", "failed": ["parse_error"]}
 
 
@@ -129,12 +211,15 @@ def stage2_score(profile: dict, text_labels: dict) -> dict:
     content = []
     for photo_b64 in profile.get("photos", [])[:5]:
         content.append({"type": "image", "source": {
-            "type": "base64", "media_type": "image/jpeg", "data": photo_b64}})
+            "type": "base64", "media_type": _media_type(photo_b64),
+            "data": photo_b64}})
     content.append({"type": "text", "text": "Score these photos."})
 
     try:
-        labels = _call(STAGE2_SYSTEM, content, max_tokens=400)
-    except (json.JSONDecodeError, KeyError):
+        labels = _call(STAGE2_SYSTEM, content, max_tokens=600)
+    except Exception as e:
+        if DEBUG:
+            print(f"  !! stage2 parse failed: {type(e).__name__}: {e}")
         return {"score": 0, "labels": {}, "reject": True, "why": "parse_error"}
 
     if labels.get("body_type") == "obese":

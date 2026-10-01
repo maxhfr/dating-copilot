@@ -15,6 +15,7 @@ from style import sanitize, has_tells, typing_delay
 client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
 MODEL = "claude-sonnet-5"
+DEBUG = os.environ.get("JUDGE_DEBUG") == "1"
 
 with open("config/persona.md") as f:
     PERSONA = f.read()
@@ -35,7 +36,9 @@ SYSTEM = f"""{PERSONA}
 
 ---
 
-Return ONLY JSON, no markdown fence:
+OUTPUT FORMAT — strict. Reply with a single JSON object and NOTHING
+else. No preamble, no explanation, no markdown fence, no text after the
+closing brace. Your entire reply must start with {{ and end with }}.
 
 {{"action": "send" | "escalate",
   "message": "the message text, if action is send",
@@ -85,7 +88,7 @@ Conversation so far ({len(history)} messages):
 
     resp = client.messages.create(
         model=MODEL,
-        max_tokens=400,
+        max_tokens=800,
         system=[
             {"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}
         ],
@@ -93,12 +96,27 @@ Conversation so far ({len(history)} messages):
     )
 
     text = "".join(b.text for b in resp.content if b.type == "text")
+    if DEBUG:
+        print(f"  -- raw draft output: {text[:400]}")
     text = text.replace("```json", "").replace("```", "").strip()
 
     try:
         out = json.loads(text)
     except json.JSONDecodeError:
-        return {"action": "escalate", "reason": "could not parse model output"}
+        # The model sometimes wraps the object in prose. Take the
+        # outermost {...} and retry before giving up.
+        start, end = text.find("{"), text.rfind("}")
+        if start != -1 and end > start:
+            try:
+                out = json.loads(text[start:end + 1])
+            except json.JSONDecodeError:
+                return {"action": "escalate",
+                        "reason": "could not parse model output",
+                        "proposed": text[:300]}
+        else:
+            return {"action": "escalate",
+                    "reason": "model returned no JSON object",
+                    "proposed": text[:300]}
 
     # Never let a generic opener through, whatever the model thinks
     if out.get("action") == "send" and kind == "opener":
@@ -108,6 +126,12 @@ Conversation so far ({len(history)} messages):
         if any(msg.startswith(b) for b in banned_starts) or len(msg) < 15:
             return {"action": "escalate",
                     "reason": "opener was generic — needs a real hook",
+                    "proposed": out.get("message")}
+        # Long openers read as written rather than texted. 160 is the
+        # ceiling; between 120 and 160 is allowed but not encouraged.
+        if len(out.get("message", "")) > 160:
+            return {"action": "escalate",
+                    "reason": f"opener too long ({len(out['message'])} chars, max 160)",
                     "proposed": out.get("message")}
 
     # Belt and braces: never send a message containing a hard commitment

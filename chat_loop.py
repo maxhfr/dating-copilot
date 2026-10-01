@@ -25,6 +25,10 @@ QUIET_HOURS = range(1, 8)
 FOLLOWUP_AFTER_DAYS = 3
 MAX_UNANSWERED = 2          # opener + one follow-up, then stop
 
+# DRY_RUN drafts everything and shows it to you, but sends NOTHING to
+# Tinder. Use it until you trust both the selectors and the writing.
+DRY_RUN = os.environ.get("DRY_RUN", "1") == "1"
+
 
 def load_state() -> dict:
     if STATE.exists():
@@ -88,6 +92,15 @@ async def handle_match(t: Tinder, match_id: str, state: dict):
         save_state(state)
         return
 
+    if DRY_RUN:
+        print(f"\n  [DRY RUN] would send to {match.get('name', match_id)} ({kind}):")
+        print(f"  > {draft['message']}\n")
+        alert(f"DRY RUN - {kind} for {match.get('name', match_id)}:\n\n"
+              f"{draft['message']}\n\n(not sent)")
+        record["status"] = "dry_run"
+        save_state(state)
+        return
+
     # Wait as though typing, then send.
     await asyncio.sleep(min(draft.get("delay_seconds", 20), 180))
     await t.send_message(match_id, draft["message"])
@@ -116,10 +129,34 @@ def drain_telegram(state: dict):
     save_state(state)
 
 
+async def run_once():
+    """Single pass over all matches. Use this for testing rather than the
+    long-running loop."""
+    state = load_state()
+    async with Tinder(headless=False) as t:
+        await t.ensure_logged_in()
+        await t.dismiss_modals()
+
+        match_ids = await t.list_matches()
+        print(f"Found {len(match_ids)} match threads: {match_ids}")
+        if not match_ids:
+            print("No matches found — selectors may be wrong. "
+                  "Run match_probe.py to inspect the page.")
+            return
+
+        for mid in match_ids:
+            try:
+                await handle_match(t, mid, state)
+            except Exception as e:
+                print(f"  error on {mid}: {type(e).__name__}: {e}")
+            await asyncio.sleep(random.uniform(3, 8))
+    print("\nPass complete.")
+
+
 async def run_loop(interval_minutes: int = 25):
     state = load_state()
 
-    async with Tinder(headless=True) as t:
+    async with Tinder(headless=False) as t:
         await t.ensure_logged_in()
 
         while True:
@@ -154,4 +191,8 @@ async def run_loop(interval_minutes: int = 25):
 
 
 if __name__ == "__main__":
-    asyncio.run(run_loop())
+    import sys
+    if "--once" in sys.argv:
+        asyncio.run(run_once())
+    else:
+        asyncio.run(run_loop())
