@@ -164,6 +164,10 @@ class Tinder(Platform):
             "Plus tard",
             "Ignorer",
             "Refuser",
+            # Cookie/tracking banner. It holds keyboard focus, so the arrow
+            # keys never reach the deck. Decline; never add an accept label.
+            "Je refuse",
+            "Reject all",
         ]
         for label in DISMISS:
             try:
