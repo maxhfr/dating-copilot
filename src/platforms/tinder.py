@@ -225,6 +225,8 @@ class Tinder(Platform):
             ("élargis tes critères", "no profiles left - widen your filters"),
             ("c'est un match", "a match popup is blocking the deck"),
             ("obtenir tinder", "an upsell popup is blocking the deck"),
+            # Tinder Plus upsell shown when the free likes run out.
+            ("likes illimités", "out of likes (Tinder Plus popup)"),
             ("abonne", "a subscription popup is blocking the deck"),
             ("premier like", "Gold upsell popup ('first like') blocking the deck"),
             ("tinder gold", "Tinder Gold upsell blocking the deck"),

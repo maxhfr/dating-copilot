@@ -282,6 +282,55 @@ class PanelOpen(unittest.TestCase):
         self.assertFalse(_panel_open("Passer au contenu principal\nMatchs\nMessages\n12"))
 
 
+# Visible text of the real Tinder Plus popup (from a screenshot of the like
+# limit screen), plus the sidebar.
+LIKE_LIMIT_POPUP = """\
+Matchs
+Messages
+22 Likes
+Likes illimités. Envoie autant de Likes que tu veux.
+Choisis un abonnement
+Populaire
+1 semaine
+8,99 €/semaine
+Continuer
+"""
+
+
+class DiagnoseNoCard(unittest.TestCase):
+    def _diagnose(self, body):
+        import asyncio, os, tempfile
+        from types import SimpleNamespace
+        from platforms.tinder import Tinder
+
+        async def inner_text(_):
+            return body
+
+        async def screenshot(**_):
+            pass
+
+        def locator(_):
+            raise RuntimeError("no popup buttons in this stub")
+
+        t = Tinder()
+        t.page = SimpleNamespace(inner_text=inner_text, screenshot=screenshot,
+                                 locator=locator, url="https://tinder.com/app/recs")
+        old = os.getcwd()
+        with tempfile.TemporaryDirectory() as d:
+            os.chdir(d)  # debug_nocard.* are written to the cwd
+            try:
+                return asyncio.run(t.diagnose_no_card())
+            finally:
+                os.chdir(old)
+
+    def test_like_limit_popup_is_out_of_likes(self):
+        self.assertEqual(self._diagnose(LIKE_LIMIT_POPUP),
+                         "out of likes (Tinder Plus popup)")
+
+    def test_unknown_page_is_generic_no_card(self):
+        self.assertTrue(self._diagnose("Matchs\nMessages\n").startswith("no card found"))
+
+
 class PlatformInterface(unittest.TestCase):
     def test_tinder_implements_platform(self):
         from platforms.base import Platform

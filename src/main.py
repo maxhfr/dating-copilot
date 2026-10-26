@@ -66,15 +66,22 @@ async def run_session():
                     await asyncio.sleep(random.uniform(3, 6))
                     profile = await t.read_current_profile()
                 if not profile:
-                    # One odd card shouldn't end the session: pass it, but
-                    # give up if several in a row can't be read.
-                    if unreadable_in_a_row < 3:
-                        unreadable_in_a_row += 1
-                        print(f"  (passed unreadable card, "
-                              f"{unreadable_in_a_row} in a row)")
-                        await t.swipe(like=False)
-                        continue
-                    stopped = await t.diagnose_no_card()
+                    # Find out why before swiping blind: a popup or the like
+                    # limit is not an unreadable card.
+                    reason = await t.diagnose_no_card()
+                    unreadable_in_a_row += 1
+                    if unreadable_in_a_row <= 3:
+                        if reason.startswith("popup was blocking"):
+                            print("  (dismissed a popup, retrying)")
+                            continue
+                        if reason.startswith("no card found"):
+                            # One odd card shouldn't end the session: pass
+                            # it, but give up if several in a row fail.
+                            print(f"  (passed unreadable card, "
+                                  f"{unreadable_in_a_row} in a row)")
+                            await t.swipe(like=False)
+                            continue
+                    stopped = reason
                     if HOLD_ON_STOP:
                         print(f"\n  !! {stopped}")
                         print("  !! Browser stays open 45s so you can look.\n")
@@ -120,7 +127,7 @@ async def run_session():
     except Exception as e:
         stopped = f"{type(e).__name__}: {e}"
 
-    if stopped and stopped not in ("no card found", "out of likes"):
+    if stopped and not stopped.startswith(("no card found", "out of likes")):
         alert(f"Session stopped: {stopped}")
 
     session_digest(reviewed=reviewed, likes=likes,
