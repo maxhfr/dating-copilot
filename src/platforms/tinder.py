@@ -485,7 +485,7 @@ def _clean_lines(body: str) -> list[str]:
 def _parse_name_age(body: str) -> tuple[str | None, int | None]:
     """Name and age arrive concatenated, e.g. 'Morgan27'."""
     for l in _clean_lines(body):
-        m = re.fullmatch(r"([^\d]{2,30}?)(\d{2})", l)
+        m = re.fullmatch(r"([^\d]{1,30}?)(\d{2})", l)
         if m and 18 <= int(m.group(2)) <= 99:
             return m.group(1).strip(), int(m.group(2))
     return None, None

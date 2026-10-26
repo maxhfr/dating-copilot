@@ -122,6 +122,15 @@ class NameAge(unittest.TestCase):
     def test_accented_name(self):
         self.assertEqual(_parse_name_age("Élodie31\nRetour"), ("Élodie", 31))
 
+    def test_single_letter_name(self):
+        # Shape seen in a real capture (masked line 'a99'): one-letter name.
+        self.assertEqual(_parse_name_age("Matchs\nMessages\nJ27\nRetour"),
+                         ("J", 27))
+
+    def test_bare_age_is_not_a_name(self):
+        # Sidebar badge counts are digits only and must not match.
+        self.assertEqual(_parse_name_age("12\n12\u00a0Likes"), (None, None))
+
     def test_underage_rejected(self):
         self.assertEqual(_parse_name_age("Sam17"), (None, None))
 
