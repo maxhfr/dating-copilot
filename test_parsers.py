@@ -31,7 +31,7 @@ except ImportError:
 
 from platforms.tinder import (  # noqa: E402
     _first_int, _parse_name_age, _parse_fields,
-    _parse_history, _parse_match_profile,
+    _parse_history, _parse_match_profile, _panel_open,
 )
 
 # Synthetic, modelled on the layout documented in tinder.py.
@@ -272,6 +272,14 @@ class Capture(unittest.TestCase):
         os.environ["CAPTURE"] = "1"
         self.cap.CAPTURE_DIR = self.cap.Path("/proc/nope/captures")
         self.cap.save_capture("x")  # must not raise
+
+
+class PanelOpen(unittest.TestCase):
+    def test_open_when_bloquer_line_present(self):
+        self.assertTrue(_panel_open(MORGAN_PROFILE))
+
+    def test_closed_for_sidebar_only(self):
+        self.assertFalse(_panel_open("Passer au contenu principal\nMatchs\nMessages\n12"))
 
 
 class PlatformInterface(unittest.TestCase):

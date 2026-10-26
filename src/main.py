@@ -44,6 +44,7 @@ async def run_session():
     profile_cap = random.randint(int(MAX_PROFILES * 0.4), MAX_PROFILES)
 
     seen, likes, reviewed, vision_calls = set(), 0, 0, 0
+    unreadable_in_a_row = 0
     liked_log, stopped = [], None
     last_reported = 0
 
@@ -65,12 +66,21 @@ async def run_session():
                     await asyncio.sleep(random.uniform(3, 6))
                     profile = await t.read_current_profile()
                 if not profile:
+                    # One odd card shouldn't end the session: pass it, but
+                    # give up if several in a row can't be read.
+                    if unreadable_in_a_row < 3:
+                        unreadable_in_a_row += 1
+                        print(f"  (passed unreadable card, "
+                              f"{unreadable_in_a_row} in a row)")
+                        await t.swipe(like=False)
+                        continue
                     stopped = await t.diagnose_no_card()
                     if HOLD_ON_STOP:
                         print(f"\n  !! {stopped}")
                         print("  !! Browser stays open 45s so you can look.\n")
                         await asyncio.sleep(45)
                     break
+                unreadable_in_a_row = 0
 
                 if profile["id"] in seen:
                     await t.swipe(like=False)

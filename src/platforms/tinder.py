@@ -275,6 +275,10 @@ class Tinder(Platform):
 
         name, age = _parse_name_age(body)
         if not name:
+            if _panel_open(body):
+                # Leave the deck usable: close the panel we just opened.
+                await self.page.keyboard.press("ArrowDown")
+                await asyncio.sleep(random.uniform(0.4, 1.0))
             return None
 
         for _ in range(3):
@@ -464,6 +468,11 @@ _LIFESTYLE_KEYS = {
     "Niveau d'études": "education",
     "Niveau d’études": "education",
 }
+
+
+def _panel_open(body: str) -> bool:
+    """True when the profile panel is showing (it ends with 'Bloquer <name>')."""
+    return any(l.strip().startswith("Bloquer") for l in body.splitlines())
 
 
 def _is_emoji_only(line: str) -> bool:
