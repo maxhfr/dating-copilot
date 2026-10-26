@@ -3,8 +3,8 @@
 Auto-liking for Tinder, using the Claude API. Scores every profile against
 your rubric, swipes for you, and sends a Telegram digest.
 
-Messaging exists too (`src/chat_loop.py`) but is optional and off by
-default — see **Messaging** at the bottom.
+Auto-liking only. The old messaging code is parked in
+`_archive/messaging/` — see **Archived: messaging** at the bottom.
 
 ## What the swipe side does
 
@@ -54,6 +54,12 @@ Then verify everything before the first run:
 
 ```bash
 python check_setup.py
+```
+
+Parser unit tests (offline, no API calls, no browser):
+
+```bash
+python test_parsers.py
 ```
 
 ## Running
@@ -140,18 +146,9 @@ in the rubric can't be applied there.
 **This violates Tinder's ToS.** Accounts do get banned, and because the
 account is phone-verified, a ban is sticky.
 
-## Messaging (optional, off by default)
+## Archived: messaging
 
-```bash
-DRY_RUN=1 python src/chat_loop.py --once    # drafts, shows, sends nothing
-DRY_RUN=0 python src/chat_loop.py           # continuous loop, sends
-```
-
-It decides opener / follow-up / reply per match, drafts in your voice
-(`config/persona.md`), strips AI writing tells (`src/style.py`), reviews
-each draft with a second model call (`src/gate.py`), and escalates to
-Telegram the moment a plan starts forming.
-
-**The two scripts cannot run at the same time** — they share the browser
-session directory and Playwright locks it. Stop one before starting the
-other.
+The messaging side (chat loop, opener drafting, quality gate, persona and
+date rules) is no longer part of the app. It lives in `_archive/messaging/`
+with its original `src/` and `config/` layout, so it can be moved back if
+it's ever revived. It is not run, imported or checked by anything here.

@@ -6,6 +6,5 @@ set -a; source .env; set +a
 cd src
 case "${1:-swipe}" in
   swipe) exec python main.py ;;
-  chat)  exec python chat_loop.py ;;
-  *) echo "usage: run.sh [swipe|chat]"; exit 1 ;;
+  *) echo "usage: run.sh [swipe]"; exit 1 ;;
 esac

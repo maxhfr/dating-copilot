@@ -229,6 +229,42 @@ class MatchProfile(unittest.TestCase):
                           "distance_km": None})
 
 
+class Capture(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        import platforms.capture as cap
+        self.cap = cap
+        self.tmp = tempfile.TemporaryDirectory()
+        self._old = cap.CAPTURE_DIR
+        cap.CAPTURE_DIR = Path(self.tmp.name) / "captures"
+
+    def tearDown(self):
+        self.cap.CAPTURE_DIR = self._old
+        self.tmp.cleanup()
+        import os
+        os.environ.pop("CAPTURE", None)
+
+    def test_off_by_default(self):
+        self.cap.save_capture("Morgan27")
+        self.assertFalse(self.cap.CAPTURE_DIR.exists())
+
+    def test_writes_raw_text_when_enabled(self):
+        import os
+        os.environ["CAPTURE"] = "1"
+        self.cap.save_capture("Morgan27\nRetour")
+        files = list(self.cap.CAPTURE_DIR.glob("profile-*.txt"))
+        self.assertEqual(len(files), 1)
+        self.assertEqual(files[0].read_text(encoding="utf-8"), "Morgan27\nRetour")
+        self.assertNotIn("Morgan", files[0].name)
+
+    def test_never_raises(self):
+        import os
+        os.environ["CAPTURE"] = "1"
+        self.cap.CAPTURE_DIR = self.cap.Path("/proc/nope/captures")
+        self.cap.save_capture("x")  # must not raise
+
+
 class PlatformInterface(unittest.TestCase):
     def test_tinder_implements_platform(self):
         from platforms.base import Platform

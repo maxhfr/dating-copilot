@@ -69,6 +69,7 @@ CAPTCHA_MARKERS = [
 
 
 from platforms.base import Platform
+from platforms.capture import save_capture
 
 
 class Tinder(Platform):
@@ -269,6 +270,8 @@ class Tinder(Platform):
             body = await self.page.inner_text("body")
         except Exception:
             return None
+
+        save_capture(body)
 
         name, age = _parse_name_age(body)
         if not name:
