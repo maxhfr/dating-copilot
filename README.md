@@ -75,6 +75,11 @@ source .venv/bin/activate && set -a && source .env && set +a
 python src/main.py
 ```
 
+To save raw profile text for building parser test fixtures, run with
+`CAPTURE=1 ./run.sh swipe`. Files go to `~/.dating-copilot/captures/`
+(outside the repo). They contain real names and bios, so anonymise before
+sharing or committing.
+
 First run opens a real Chromium window. Log into Tinder by hand — the
 session persists in `~/.dating-copilot/` after that. The bot never sees
 your password.

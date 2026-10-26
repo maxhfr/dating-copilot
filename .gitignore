@@ -10,3 +10,4 @@ dom_dump*
 *_probe*.png
 state/
 sessions/
+profile-*.txt
