@@ -68,7 +68,10 @@ CAPTCHA_MARKERS = [
 ]
 
 
-class Tinder:
+from platforms.base import Platform
+
+
+class Tinder(Platform):
     def __init__(self, headless=False):
         self.headless = headless
 
