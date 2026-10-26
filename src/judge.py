@@ -1,13 +1,17 @@
 """Two-stage profile evaluation.
 
-Stage 1 (text only, ~300 tokens): hard filters from rubric.yaml. Most
-profiles die here and cost almost nothing — no images attached.
+Stage 0 (code, free): numeric hard filters — age, distance, height.
+Deterministic, costs nothing, and the model is not asked to do arithmetic
+because it kept rejecting profiles that were inside the range.
+
+Stage 1 (text only, ~300 tokens): the remaining hard filters.
+Most profiles die here and cost almost nothing — no images attached.
 
 Stage 2 (vision, ~5k tokens): scores survivors 0-100 using scoring.yaml.
 Only runs on profiles that already cleared stage 1.
 
-Both use Haiku 4.5. Rubric and weights are cached so they aren't re-billed
-on every call.
+Both model stages use Haiku 4.5. Rubric and weights are cached so they
+aren't re-billed on every call.
 """
 
 import json
@@ -55,12 +59,6 @@ rejection. They are scored separately afterwards. If you are tempted to
 reject for any reason not in the numbered list above, the answer is
 "pass".
 
-Relationship intent, pets, exercise, children, education, religion,
-politics and every other field are NOT hard filters. They are scored
-separately later. Never reject on them. If a profile passes the seven
-filters above, the verdict is "pass" — even if other things look like a
-poor match.
-
 Rules:
 - Age, distance and height have ALREADY been checked in code before you
   see this profile. Do NOT evaluate them. Do NOT reject on them.
@@ -68,15 +66,12 @@ Rules:
   anything inferred from prose.
 - Language: assume French unless there's positive evidence she speaks
   neither French nor English.
-- Smoking: reject ONLY on explicit anti-smoking statements.
-- Drinking: reject ONLY if she states she doesn't drink.
+- Smoking and drinking: NOT filters. Ignore both entirely.
 - Profile quality: the "bio" field concatenates her free text AND her
   answered prompts, separated by " | ". Reject as low-effort ONLY if bio
   is empty or under ~15 characters AND the lifestyle object is empty.
   An answered prompt counts as effort. Filled lifestyle fields count too.
 - Silence is always a pass. Absence of information is never a rejection.
-
-{NO_ETHNICITY}
 
 Also score the TEXT categories from scoring.yaml:
 
@@ -133,6 +128,20 @@ Return ONLY JSON, no fence:
 """
 
 
+def _media_type(b64: str) -> str:
+    """Sniff the real format instead of trusting the caller. PNG starts
+    iVBORw0 in base64; JPEG starts /9j/."""
+    if b64.startswith("iVBORw0"):
+        return "image/png"
+    if b64.startswith("/9j/"):
+        return "image/jpeg"
+    if b64.startswith("R0lGOD"):
+        return "image/gif"
+    if b64.startswith("UklGR"):
+        return "image/webp"
+    return "image/jpeg"
+
+
 def _call(system, content, max_tokens=500):
     resp = client.messages.create(
         model=MODEL,
@@ -154,20 +163,6 @@ def _call(system, content, max_tokens=500):
         if start != -1 and end > start:
             return json.loads(text[start:end + 1])
         raise
-
-
-def _media_type(b64: str) -> str:
-    """Sniff the real format instead of trusting the caller. PNG starts
-    iVBORw0 in base64; JPEG starts /9j/."""
-    if b64.startswith("iVBORw0"):
-        return "image/png"
-    if b64.startswith("/9j/"):
-        return "image/jpeg"
-    if b64.startswith("R0lGOD"):
-        return "image/gif"
-    if b64.startswith("UklGR"):
-        return "image/webp"
-    return "image/jpeg"
 
 
 def _hard_filters(profile: dict) -> list[str]:

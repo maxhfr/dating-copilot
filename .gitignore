@@ -1,13 +1,12 @@
-__pycache__/
-*.pyc
 .env
 .venv/
-venv/
+__pycache__/
+*.pyc
 *.log
-.DS_Store
-
-# Probe/debug output (contains scraped profile data)
-*_probe*.png
-*_probe*.txt
 debug_*.png
 debug_*.txt
+dom_dump*
+*_probe.txt
+*_probe*.png
+state/
+sessions/

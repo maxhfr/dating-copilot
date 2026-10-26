@@ -25,7 +25,6 @@ async def main():
 
         out = []
 
-        # ---- matches list ----
         await page.goto("https://tinder.com/app/matches")
         await asyncio.sleep(6)
 
@@ -44,9 +43,9 @@ async def main():
 
         await page.screenshot(path="match_probe_list.png")
 
-        # ---- open the first conversation, if there is one ----
         links = await page.eval_on_selector_all(
-            "a", "els => els.map(e => e.getAttribute('href')).filter(h => h && h.includes('/app/messages/'))")
+            "a", "els => els.map(e => e.getAttribute('href'))"
+                 ".filter(h => h && h.includes('/app/messages/'))")
         out.append(f"\n=== MESSAGE THREAD HREFS ===\n{links}")
 
         if links:
@@ -54,7 +53,6 @@ async def main():
             await asyncio.sleep(5)
 
             out.append(f"\n=== THREAD URL ===\n{page.url}")
-
             out.append("\n=== THREAD PAGE TEXT ===")
             out.append(await page.inner_text("body"))
 

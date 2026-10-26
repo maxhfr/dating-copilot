@@ -1,10 +1,11 @@
 """Telegram loop-in.
 
 Two jobs:
-  1. Review queue — profiles that passed the rubric, for your visual yes/no
+  1. Session digests — what the swipe run did
   2. Escalations — a plan is forming, or something needs your call
 
-Both use inline buttons so you answer with one tap.
+Every send checks the response. Silent Telegram failures are worse than
+useless: you think it's working when it isn't.
 """
 
 import os
@@ -24,8 +25,7 @@ def _md(text: str) -> str:
 
 
 def _post(method: str, payload: dict):
-    """Send, and say so loudly if Telegram refuses. Silent failures here
-    are worse than useless — you think it's working when it isn't."""
+    """Send, and say so loudly if Telegram refuses."""
     try:
         r = requests.post(f"{API}/{method}", json=payload, timeout=20)
         data = r.json()
@@ -44,7 +44,7 @@ def _buttons(rows):
 
 def alert(text: str):
     """Something needs your attention right now."""
-    _post("sendMessage", {"chat_id": CHAT_ID, "text": f"\u26a0\ufe0f {text}"})
+    _post("sendMessage", {"chat_id": CHAT_ID, "text": f"⚠️ {text}"})
 
 
 def session_digest(reviewed: int, likes: int, vision_calls: int,
@@ -62,6 +62,7 @@ def session_digest(reviewed: int, likes: int, vision_calls: int,
              ""]
     if partial and not liked:
         lines.append("(no new likes since last update)")
+
     for m in sorted(liked, key=lambda x: -(x["score"] or 0))[:15]:
         hooks = ", ".join(m.get("hooks", [])[:2])
         lines.append(f"{m['score']:>3}  {_md(str(m['name']))}, {m['age']}"
@@ -97,6 +98,10 @@ def escalate(match_name: str, reason: str, proposed: str, recent: list[dict]):
 
 def poll_updates(offset: int | None = None):
     """Long-poll for your button taps."""
-    r = requests.get(f"{API}/getUpdates",
-                     params={"offset": offset, "timeout": 30}, timeout=40)
-    return r.json().get("result", [])
+    try:
+        r = requests.get(f"{API}/getUpdates",
+                         params={"offset": offset, "timeout": 30}, timeout=40)
+        return r.json().get("result", [])
+    except Exception as e:
+        print(f"[telegram] getUpdates ERROR: {e}")
+        return []

@@ -95,7 +95,7 @@ Return ONLY JSON, nothing else:
 
 def review(message: str, kind: str = "opener") -> tuple[bool, str]:
     """Returns (ok, reason). kind is "opener", "followup" or "reply" —
-    the one-idea rule only applies to openers."""
+    the one-question rule only applies to openers."""
     try:
         resp = client.messages.create(
             model=MODEL,
@@ -125,16 +125,17 @@ def review(message: str, kind: str = "opener") -> tuple[bool, str]:
 def draft_with_retry(draft_fn, *args, attempts: int = 3, **kwargs) -> dict:
     """Draft, review, redraft. Escalates rather than sending a dud.
 
-    draft_fn is chat.draft_reply. Anything it escalates passes straight
-    through — the gate only reviews messages that would actually be sent.
+    draft_fn is chat.draft_reply. Anything it escalates is retried too —
+    chat.py's own rejections (generic opener, too long, AI tells) are
+    worth another attempt before bothering Max.
     """
     tried = []
+    out = {}
     for i in range(attempts):
         out = draft_fn(*args, **kwargs)
 
         if out.get("action") != "send":
-            # chat.py already rejected it (generic opener, commitment,
-            # AI tells). Pass its verdict straight through.
+            # chat.py already rejected it. Retry unless we're out of goes.
             if out.get("proposed"):
                 tried.append((out.get("reason", ""), out["proposed"]))
                 if i < attempts - 1:

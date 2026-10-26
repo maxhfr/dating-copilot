@@ -71,6 +71,7 @@ async def run_session():
                         print("  !! Browser stays open 45s so you can look.\n")
                         await asyncio.sleep(45)
                     break
+
                 if profile["id"] in seen:
                     await t.swipe(like=False)
                     continue

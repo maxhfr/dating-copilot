@@ -4,9 +4,8 @@ Session is persistent — you log in ONCE by hand in the launched browser,
 and the profile directory keeps you logged in after that. The bot never
 touches your password.
 
-Selectors on tinder.com change regularly. Expect to fix these. They're
-kept in one dict at the top so it's a two-minute job, not an archaeology
-expedition.
+Selectors change regularly. Everything site-specific lives in SEL at the
+top, so fixing a break is a two-minute job rather than archaeology.
 """
 
 import asyncio
@@ -21,13 +20,12 @@ PROFILE_DIR = Path.home() / ".dating-copilot" / "tinder-session"
 
 SEL = {
     # data-testid is GONE from tinder.com as of 2026. Everything below is
-    # based on a live DOM probe. Buttons carry no aria-label — they are
-    # identified by their inner text instead.
+    # based on a live DOM probe. Swipe buttons carry no aria-label — they
+    # are identified by their inner text instead.
     "name": 'span[itemprop="name"]',
     "age": 'span[itemprop="age"]',
     "like_btn": 'button:has-text("LIKE")',
     "pass_btn": 'button:has-text("NON")',
-    "card_root": 'div:has(> div > div > span[itemprop="name"])',
     "open_profile": 'button:has-text("Ouvrir le profil")',
     "photo_tabs": 'button[aria-label^="Photo "]',
     "next_photo": 'button[aria-label="Photo suivante"]',
@@ -94,17 +92,22 @@ class Tinder:
         await self._pw.stop()
 
     async def ensure_logged_in(self):
-        await self.page.goto("https://tinder.com/app/recs", wait_until="domcontentloaded")
+        await self.page.goto("https://tinder.com/app/recs",
+                             wait_until="domcontentloaded")
         await asyncio.sleep(3)
-        if "/app/recs" not in self.page.url:
+        if "/app/" not in self.page.url:
             print("\n>>> Not logged in. Log in manually in the browser window.")
             print(">>> Press Enter here once you're on the swipe screen.\n")
             input()
 
-    async def check_blocked(self) -> str | None:
-        """Detect a CAPTCHA, rate-limit wall, or ban screen. We do NOT
-        attempt to solve or bypass any of these — the session stops and
-        you get pinged."""
+    async def check_blocked(self, expect: str = "recs") -> str | None:
+        """Detect a CAPTCHA, rate-limit wall or ban screen.
+
+        `expect` says which page this caller should be on: the swipe loop
+        lives on /app/recs, the chat loop on /app/matches and
+        /app/messages. Being on the "wrong" one is only a problem if it
+        isn't where the caller expects to be.
+        """
         try:
             body = (await self.page.inner_text("body")).lower()
         except Exception:
@@ -112,18 +115,28 @@ class Tinder:
 
         for marker in CAPTCHA_MARKERS:
             if marker in body:
-                import pathlib as _pl
-                _pl.Path("debug_blocked.txt").write_text(
+                pathlib.Path("debug_blocked.txt").write_text(
                     f"MARKER: {marker}\nURL: {self.page.url}\n\n{body[:3000]}",
                     encoding="utf-8")
-                await self.page.screenshot(path="debug_blocked.png")
+                try:
+                    await self.page.screenshot(path="debug_blocked.png")
+                except Exception:
+                    pass
                 return f"challenge screen detected ({marker})"
+
         if "out of likes" in body or "plus de likes" in body:
             return "out of likes"
         if "account has been banned" in body or "compte a été banni" in body:
             return "account banned"
-        if "/app/recs" not in self.page.url:
-            return f"navigated away from swipe screen ({self.page.url})"
+
+        ok_paths = {
+            "recs": ("/app/recs",),
+            "chat": ("/app/matches", "/app/messages"),
+            "any": ("/app/",),
+        }.get(expect, ("/app/",))
+
+        if not any(p in self.page.url for p in ok_paths):
+            return f"unexpected page ({self.page.url})"
         return None
 
     async def dismiss_modals(self) -> str | None:
@@ -241,7 +254,8 @@ class Tinder:
 
         photos = []
         try:
-            photos.append(base64.b64encode(await self.page.screenshot(type="jpeg", quality=72)).decode())
+            photos.append(base64.b64encode(
+                await self.page.screenshot(type="jpeg", quality=72)).decode())
         except Exception:
             pass
 
@@ -261,7 +275,8 @@ class Tinder:
             try:
                 await self.page.keyboard.press("Space")
                 await asyncio.sleep(random.uniform(0.5, 1.1))
-                photos.append(base64.b64encode(await self.page.screenshot(type="jpeg", quality=72)).decode())
+                photos.append(base64.b64encode(
+                    await self.page.screenshot(type="jpeg", quality=72)).decode())
             except Exception:
                 break
 
@@ -279,7 +294,6 @@ class Tinder:
             **fields,
         }
 
-
     async def swipe(self, like: bool):
         await asyncio.sleep(_pause())
         if USE_KEYBOARD:
@@ -287,6 +301,11 @@ class Tinder:
         else:
             await self.page.click(SEL["like_btn"] if like else SEL["pass_btn"])
         await asyncio.sleep(_pause(0.6, 1.8))
+
+    # ------------------------------------------------------------------
+    # Messaging
+    # ------------------------------------------------------------------
+
     async def _links_in_sidebar(self) -> list[dict]:
         out = []
         for el in await self.page.query_selector_all(SEL["match_links"]):
@@ -328,8 +347,8 @@ class Tinder:
 
         return found
 
-
-    async def read_match(self, match_id: str, name_hint: str = "") -> tuple[dict, list[dict]]:
+    async def read_match(self, match_id: str,
+                         name_hint: str = "") -> tuple[dict, list[dict]]:
         """Open a thread. Returns (match_info, history).
 
         The right-hand panel carries her full profile — intent, bio,
@@ -344,7 +363,6 @@ class Tinder:
         await self.page.goto(f"https://tinder.com/app/messages/{match_id}",
                              wait_until="domcontentloaded")
 
-        # Wait for the profile panel to actually appear.
         body = ""
         for attempt in range(4):
             await asyncio.sleep(_pause(1.5, 3.0) if attempt == 0
@@ -353,7 +371,6 @@ class Tinder:
                 body = await self.page.inner_text("body")
             except Exception:
                 continue
-            # These only exist once the right-hand panel has rendered.
             if any(m in body for m in ("Je recherche", "L’essentiel",
                                        "L'essentiel", "Bloquer",
                                        "Historique de conversation")):
@@ -369,14 +386,11 @@ class Tinder:
         profile = _parse_match_profile(body, name)
         history = _parse_history(body, name, profile.get("passions"))
 
-        # Did we actually get anything? An empty parse means the panel
-        # never loaded, not that she has a blank profile.
         loaded = bool(profile.get("bio") or profile.get("passions")
                       or profile.get("lifestyle") or history)
 
         return ({"id": match_id, "name": name, "age": age,
                  "loaded": loaded, **profile}, history)
-
 
     async def send_message(self, match_id: str, text: str):
         if match_id not in self.page.url:
@@ -403,22 +417,31 @@ class Tinder:
         await asyncio.sleep(_pause(1, 3))
 
 
-
 def _first_int(s: str):
     digits = "".join(c if c.isdigit() else " " for c in s).split()
     return int(digits[0]) if digits else None
 
 
-    # ------------------------------------------------------------------
-    # Messaging
-    # ------------------------------------------------------------------
-
-
+# ----------------------------------------------------------------------
+# Page-text parsing
+#
+# With a profile open, tinder.com renders everything as flat text:
+#
+#   Morgan27                 <- name and age, concatenated
+#   Retour
+#   Je recherche             <- relationship intent
+#   L'essentiel
+#   à 24 kilomètres          <- distance
+#   170 cm                   <- height (optional)
+#   Mode de vie
+#   Alcool / En soirée le week-end
+#   Bloquer <name>           <- end of profile content
+# ----------------------------------------------------------------------
 
 _CHROME = {
     "Passer au contenu principal", "Vous", "BOOST", "Explore", "Mode bureau",
     "Outils de sécurité", "Matches navigation", "Matchs", "Messages",
-    "Retour", "L'essentiel", "L\u2019essentiel", "Mode de vie", "NON",
+    "Retour", "L'essentiel", "L’essentiel", "Mode de vie", "NON",
     "SUPERLIKE", "LIKE", "Masquer", "Raccourci clavier", "Non", "Like",
     "Ouvrir le profil", "Fermer le profil", "Superlike", "Photo suivante",
     "Commencez à matcher.", "Dites bonjour", "REWIND", "SWIPE NOTES",
@@ -433,7 +456,7 @@ _LIFESTYLE_KEYS = {
     "Tabac": "smoking",
     "Je recherche": "intent",
     "Niveau d'études": "education",
-    "Niveau d\u2019études": "education",
+    "Niveau d’études": "education",
 }
 
 
@@ -525,6 +548,7 @@ _THREAD_CHROME = {
     "L’essentiel", "L'essentiel", "Mode de vie", "Je recherche",
     "Dites bonjour", "Matchs", "Messages", "Explore", "Vous",
     "BOOST", "Mode bureau", "Outils de sécurité", "Matches navigation",
+    "Bio Tinder",
 }
 
 _PROFILE_SECTIONS = ("Je recherche", "L’essentiel", "L'essentiel",
@@ -532,7 +556,8 @@ _PROFILE_SECTIONS = ("Je recherche", "L’essentiel", "L'essentiel",
                      "Mode de vie", "Passions", "Bio Tinder")
 
 
-def _parse_history(body: str, name: str, passions: list[str] | None = None) -> list[dict]:
+def _parse_history(body: str, name: str,
+                   passions: list[str] | None = None) -> list[dict]:
     """Messages exchanged so far, with correct speaker attribution.
 
     Tinder prefixes each message with a speaker line:
@@ -561,6 +586,8 @@ def _parse_history(body: str, name: str, passions: list[str] | None = None) -> l
     except StopIteration:
         end = len(lines)
 
+    # On a new match Tinder shows the interests you have in common as
+    # chips inside the empty thread. They are not messages.
     shared = set(passions or [])
     SKIP_EXACT = {"Envoyé", "Distribué", "Vu", "Lu", "Delivered", "Sent", "Seen"}
 
@@ -578,7 +605,8 @@ def _parse_history(body: str, name: str, passions: list[str] | None = None) -> l
         if (l in _THREAD_CHROME or l in SKIP_EXACT or l in shared
                 or l.startswith(("Envoyé à", "Vous avez obtenu un Match",
                                  "il y a ", "Tu peux choisir",
-                                 "Ton dernier message"))
+                                 "Ton dernier message",
+                                 "Le dernier message"))
                 or re.fullmatch(r"\d{1,2}:\d{2}", l)
                 or re.fullmatch(r"\d{2}/\d{2}/\d{4}", l)
                 # date + time on one line, e.g. "20/08/2026 21:16"
@@ -595,12 +623,12 @@ def _parse_history(body: str, name: str, passions: list[str] | None = None) -> l
     return history
 
 
-
 def _parse_match_profile(body: str, name: str) -> dict:
-    """Her profile from the right-hand panel: intent, passions, lifestyle.
+    """Her profile from the right-hand panel: bio, intent, passions,
+    lifestyle.
 
-    Passions are the best opener material on the page — they're specific
-    and she chose them.
+    Passions and her written bio are the best opener material on the page
+    — they're specific and she chose them.
     """
     lines = [l.strip() for l in body.splitlines() if l.strip()]
 
@@ -656,6 +684,7 @@ def _parse_match_profile(body: str, name: str) -> dict:
     bio_bits = free_bio + essentials
     if passions:
         bio_bits.append(f"Passions: {', '.join(passions)}")
+
     return {
         "bio": " | ".join(bio_bits)[:900],
         "passions": passions,

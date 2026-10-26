@@ -51,13 +51,13 @@ EMOJI = re.compile(
     "\U00002B00-\U00002BFF"
     "\U0000FE00-\U0000FE0F"   # variation selectors
     "\U0001F3FB-\U0001F3FF"   # skin tone modifiers
-    "\U0000200D"               # zero-width joiner
-    "\U000020E3"               # combining keycap
+    "\U0000200D"              # zero-width joiner
+    "\U000020E3"              # combining keycap
     "]+"
 )
 
 # Dashes: the single most recognisable tell
-DASH_CHARS = {"\u2014": ", ", "\u2013": "-", "\u2015": ", "}
+DASH_CHARS = {"—": ", ", "–": "-", "―": ", "}
 
 
 def _kill_dashes(text: str) -> str:
@@ -105,9 +105,8 @@ def _casualise_french(text: str) -> str:
     text = re.sub(r"\bn'(\w+) pas\b", r"\1 pas", text)
 
     # a substitution can leave a capitalised word mid-sentence
-    def _fix(m):
-        return m.group(1) + m.group(2).lower() + m.group(3)
-    text = re.sub(r"([,;] )([A-ZÀ-Þ])(?=[a-zà-ÿ])", lambda m: m.group(1) + m.group(2).lower(), text)
+    text = re.sub(r"([,;] )([A-ZÀ-Þ])(?=[a-zà-ÿ])",
+                  lambda m: m.group(1) + m.group(2).lower(), text)
     return text
 
 
@@ -149,6 +148,7 @@ def sanitize(text: str, lang: str = "fr") -> str:
 
     text = MULTI_NEWLINE.sub("\n\n", text)
     text = MULTI_SPACE.sub(" ", text)
+
     # emoji removal can leave " ." or " !"
     text = re.sub(r"\s+([.,!?])", r"\1", text)
     text = MULTI_SPACE.sub(" ", text)

@@ -125,7 +125,7 @@ Conversation so far ({len(history)} messages):
                          "ça va", "ca va", "how are you", "how's it going"]
         if any(msg.startswith(b) for b in banned_starts) or len(msg) < 15:
             return {"action": "escalate",
-                    "reason": "opener was generic — needs a real hook",
+                    "reason": "opener was generic - needs a real hook",
                     "proposed": out.get("message")}
         # Long openers read as written rather than texted. 160 is the
         # ceiling; between 120 and 160 is allowed but not encouraged.

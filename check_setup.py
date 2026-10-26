@@ -19,7 +19,7 @@ REQUIRED = [
     "config/rubric.yaml", "config/scoring.yaml",
     "config/persona.md", "config/date_rules.md", "config/openers.md",
     "src/__init__.py", "src/chat.py", "src/chat_loop.py", "src/judge.py",
-    "src/main.py", "src/notifier.py", "src/style.py",
+    "src/gate.py", "src/main.py", "src/notifier.py", "src/style.py",
     "src/platforms/__init__.py", "src/platforms/tinder.py",
 ]
 
@@ -34,7 +34,9 @@ def check_files():
         else:
             ok.append(rel)
 
-    stray = [f.name for f in ROOT.glob("*.py") if f.name != "check_setup.py"]
+    allowed_root = {"check_setup.py", "test_gate.py", "match_probe.py",
+                    "thread_probe.py", "dom_probe.py"}
+    stray = [f.name for f in ROOT.glob("*.py") if f.name not in allowed_root]
     if stray:
         fail.append(f"python files loose in root (should be in src/): {stray}")
 
@@ -94,7 +96,8 @@ def check_configs():
         r = yaml.safe_load((ROOT / "config/rubric.yaml").read_text())
         assert r["age"]["min"] < r["age"]["max"]
         ok.append(f"rubric: age {r['age']['min']}-{r['age']['max']}, "
-                  f"{r['distance_km_max']}km")
+                  f"{r['distance_km_max']}km, "
+                  f"height<{r['height']['max_cm_if_stated']}")
     except Exception as e:
         fail.append(f"rubric.yaml invalid: {e}")
 
@@ -117,7 +120,7 @@ def check_configs():
 def check_imports():
     sys.path.insert(0, str(ROOT / "src"))
     os.chdir(ROOT)
-    for mod in ["style", "judge", "chat", "notifier"]:
+    for mod in ["style", "judge", "gate", "chat", "notifier"]:
         try:
             importlib.import_module(mod)
             ok.append(f"imports: {mod}")

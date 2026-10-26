@@ -1,11 +1,15 @@
 """Chat loop.
 
 Polls matches, decides opener vs follow-up vs reply, drafts via chat.py,
-sanitizes via style.py, and sends. Escalates to Telegram the moment a
-plan is forming or anything looks off, and waits for your answer.
+sanitizes via style.py, reviews via gate.py, and sends. Escalates to
+Telegram the moment a plan is forming or anything looks off, and waits
+for your answer.
 
 State lives in a small JSON file so restarts don't re-open conversations
 or double-message anyone.
+
+NOTE: this is the messaging side. If you only want auto-liking, don't run
+this at all — src/main.py is self-contained.
 """
 
 import asyncio
@@ -33,13 +37,14 @@ DRY_RUN = os.environ.get("DRY_RUN", "1") == "1"
 
 def load_state() -> dict:
     if STATE.exists():
-        return json.loads(STATE.read_text())
+        return json.loads(STATE.read_text(encoding="utf-8"))
     return {"matches": {}, "tg_offset": None}
 
 
 def save_state(state: dict):
     STATE.parent.mkdir(parents=True, exist_ok=True)
-    STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False))
+    STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False),
+                     encoding="utf-8")
 
 
 def _now() -> str:
@@ -191,7 +196,7 @@ async def run_loop(interval_minutes: int = 25):
 
             drain_telegram(state)
 
-            blocked = await t.check_blocked()
+            blocked = await t.check_blocked(expect="chat")
             if blocked:
                 alert(f"Chat loop stopped: {blocked}")
                 break

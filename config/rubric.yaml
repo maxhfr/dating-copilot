@@ -1,6 +1,6 @@
-# Swipe rubric — criteria the AI judges each profile against.
-# Everything here is auto-decided. Anything NOT here is decided by you
-# in the review queue (see review_queue.py).
+# Hard filters. A profile failing ANY of these is rejected before it is
+# ever scored. Age, distance and height are enforced in code (judge.py),
+# not by the model — it kept rejecting profiles inside the range.
 
 age:
   min: 26
@@ -33,11 +33,11 @@ body_type:
 profile_quality:
   min_photos: 2
   require_some_bio_or_prompt: true
-  # Skip accounts that look inactive / abandoned
+  # Skip accounts that look inactive / abandoned.
+  # Note: Tinder web does not expose last-active, so this only applies
+  # where the platform provides it.
   max_days_inactive: 30
 
-# --- Not automated ---
-# Ethnicity preference is NOT evaluated by the model. Profiles that pass
-# everything above go to the review queue for a 2-second visual yes/no
-# from you before any swipe is spent.
-manual_review_required: true
+# --- Not evaluated ---
+# Ethnicity, race and national origin are not inputs to this rubric or to
+# the scoring, and must not be inferred by the model.

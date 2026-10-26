@@ -76,9 +76,9 @@ bio_effort:
 
 shared_interests:
   max: 12
-  # Overlap with: cooking (esp. Asian food), music (wide range, drum &
-  # bass, French rap), climbing / gym, animals and cats, film, wine,
-  # football, wanting a place outside Paris one day.
+  # Overlap with: cooking (esp. Vietnamese/Korean/Thai), music (wide
+  # range, drum & bass, French rap), climbing / gym, animals and cats,
+  # film, wine, football, wanting a place outside Paris one day.
   scores:
     strong: 12         # two or more real overlaps
     some: 8
