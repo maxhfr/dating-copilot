@@ -10,7 +10,7 @@ Most profiles die here and cost almost nothing — no images attached.
 Stage 2 (vision, ~5k tokens): scores survivors 0-100 using scoring.yaml.
 Only runs on profiles that already cleared stage 1.
 
-Both model stages use Haiku 4.5. Rubric and weights are cached so they
+Both model stages use Haiku 5.5 (see MODEL). Rubric and weights are cached so they
 aren't re-billed on every call.
 """
 
@@ -22,7 +22,8 @@ from anthropic import Anthropic
 from paths import config_dir
 
 client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-MODEL = "claude-haiku-4-5-20251001"
+# JUDGE_MODEL=claude-haiku-4-5-20251001 switches back, e.g. to compare scores.
+MODEL = os.environ.get("JUDGE_MODEL", "claude-haiku-5-5")
 
 CONFIG = config_dir()
 
@@ -147,12 +148,18 @@ def _media_type(b64: str) -> str:
 
 
 def _call(system, content, max_tokens=500):
+    extra = {}
+    if MODEL.startswith("claude-haiku-5"):
+        # Haiku 5.x thinks by default and thinking tokens count against
+        # max_tokens, which could cut the JSON off. These calls need none.
+        extra["thinking"] = {"type": "disabled"}
     resp = client.messages.create(
         model=MODEL,
         max_tokens=max_tokens,
         system=[{"type": "text", "text": system,
                  "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": content}],
+        **extra,
     )
     text = "".join(b.text for b in resp.content if b.type == "text")
     if DEBUG:
