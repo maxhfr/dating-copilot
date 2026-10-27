@@ -5,43 +5,129 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dating Copilot</title>
 <style>
-  :root { --bg:#fff; --fg:#1d1d1f; --muted:#6e6e73; --line:#e5e5ea; --accent:#d6336c; --ok:#2b8a3e; --bad:#c92a2a; --card:#f5f5f7; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#1c1c1e; --fg:#f2f2f7; --muted:#98989d; --line:#3a3a3c; --accent:#f06595; --ok:#51cf66; --bad:#ff6b6b; --card:#2c2c2e; }
+  :root {
+    --bg:#f5f5f7; --surface:#ffffff; --surface-2:#f0f0f3; --fg:#1d1d1f; --muted:#6b6b73;
+    --line:#e3e3e8; --accent:#d6336c; --accent-fg:#ffffff; --accent-soft:#fdebf2;
+    --ok:#1e8a3a; --ok-bg:#e6f5ea; --warn:#a66100; --warn-bg:#fdf1d9;
+    --bad:#c0262d; --bad-bg:#fbe6e7; --chip:#e9e9ee; --shadow:0 1px 2px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.04);
+    --r:12px; --r-sm:8px;
   }
-  * { box-sizing: border-box; }
-  body { margin:0; font:15px/1.45 -apple-system, system-ui, sans-serif; background:var(--bg); color:var(--fg); }
-  header { display:flex; gap:8px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--line); }
-  header h1 { font-size:16px; margin:0 12px 0 0; }
-  nav button { background:none; border:0; padding:6px 10px; font:inherit; color:var(--muted); cursor:pointer; border-radius:6px; }
-  nav button.on { color:var(--fg); background:var(--card); font-weight:600; }
-  main { padding:16px; max-width:900px; margin:0 auto; }
-  section { display:none; } section.on { display:block; }
-  button.primary { background:var(--accent); color:#fff; border:0; padding:9px 18px; border-radius:8px; font:inherit; font-weight:600; cursor:pointer; }
-  button.secondary { background:var(--card); color:var(--fg); border:1px solid var(--line); padding:9px 18px; border-radius:8px; font:inherit; cursor:pointer; }
-  button:disabled { opacity:.5; cursor:default; }
-  .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
-  .pill { padding:3px 10px; border-radius:999px; background:var(--card); font-size:13px; }
-  .log { background:var(--card); border-radius:8px; padding:10px; font:12px/1.5 ui-monospace, monospace; max-height:140px; overflow:auto; white-space:pre-wrap; }
-  table { width:100%; border-collapse:collapse; margin-top:12px; }
-  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); font-size:14px; vertical-align:top; }
-  th { color:var(--muted); font-weight:500; }
-  .like { color:var(--ok); font-weight:600; } .pass { color:var(--muted); }
-  label { display:flex; flex-direction:column; font-size:13px; color:var(--muted); gap:4px; }
-  input { font:inherit; padding:7px 9px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--fg); width:130px; }
-  .grid { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:14px; }
-  .bars { display:flex; align-items:flex-end; gap:6px; height:140px; margin:12px 0 4px; }
-  .bar { flex:1; background:var(--accent); border-radius:4px 4px 0 0; min-height:2px; position:relative; }
-  .bar span { position:absolute; top:-18px; left:0; right:0; text-align:center; font-size:12px; color:var(--muted); }
-  .axis { display:flex; gap:6px; font-size:12px; color:var(--muted); } .axis div { flex:1; text-align:center; }
-  .msg { color:var(--bad); min-height:1.4em; }
-  ul.checks { list-style:none; padding:0; } ul.checks li { padding:6px 0; border-bottom:1px solid var(--line); }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#141416; --surface:#1e1e21; --surface-2:#28282c; --fg:#f2f2f7; --muted:#9b9ba3;
+      --line:#34343a; --accent:#f06595; --accent-fg:#1a0710; --accent-soft:#3a1a27;
+      --ok:#5fd27a; --ok-bg:#16301d; --warn:#f0b24a; --warn-bg:#35280f;
+      --bad:#ff7b80; --bad-bg:#3a1b1d; --chip:#34343a; --shadow:0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; font:15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background:var(--bg); color:var(--fg); font-variant-numeric:tabular-nums; }
+  code { background:var(--surface-2); padding:1px 5px; border-radius:5px; font-size:.9em; }
+  h2 { font-size:15px; margin:0 0 4px; }
+  p { margin:0 0 12px; }
   .muted { color:var(--muted); }
+  .small { font-size:13px; }
+
+  header { position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; padding:12px 20px; background:color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter:saturate(1.4) blur(12px); -webkit-backdrop-filter:saturate(1.4) blur(12px); border-bottom:1px solid var(--line); }
+  .brand { display:flex; align-items:center; gap:9px; font-weight:700; font-size:16px; letter-spacing:-.01em; }
+  .brand i { width:22px; height:22px; border-radius:7px; background:linear-gradient(135deg, var(--accent), #ff9a6b); display:inline-block; }
+  nav { display:flex; gap:2px; padding:3px; background:var(--surface-2); border-radius:10px; overflow-x:auto; max-width:100%; }
+  nav button { background:none; border:0; padding:6px 13px; font:inherit; font-size:14px; color:var(--muted); cursor:pointer; border-radius:8px; white-space:nowrap; }
+  nav button:hover { color:var(--fg); }
+  nav button.on { color:var(--fg); background:var(--surface); font-weight:600; box-shadow:var(--shadow); }
+
+  main { padding:20px; max-width:940px; margin:0 auto; }
+  section { display:none; } section.on { display:block; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:16px 18px; box-shadow:var(--shadow); margin-bottom:16px; }
+  .card > h2 + .muted { margin-bottom:12px; }
+
+  button { font:inherit; }
+  button:focus-visible, input:focus-visible, summary:focus-visible, nav button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  button.primary { background:var(--accent); color:var(--accent-fg); border:0; padding:9px 20px; border-radius:var(--r-sm); font-weight:600; cursor:pointer; }
+  button.primary:hover:not(:disabled) { filter:brightness(1.06); }
+  button.secondary { background:var(--surface-2); color:var(--fg); border:1px solid var(--line); padding:9px 18px; border-radius:var(--r-sm); cursor:pointer; }
+  button.secondary:hover:not(:disabled) { background:var(--chip); }
+  button.danger { background:var(--bad); color:#fff; border:0; padding:9px 20px; border-radius:var(--r-sm); font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.45; cursor:default; }
+
+  .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .row + .row, .row + .log, .row + details { margin-top:12px; }
+
+  .pill { display:inline-flex; align-items:center; gap:7px; padding:3px 11px; border-radius:999px; background:var(--chip); font-size:13px; font-weight:500; color:var(--muted); }
+  .pill:empty { display:none; }
+  .pill::before { content:""; width:8px; height:8px; border-radius:50%; background:currentColor; opacity:.6; }
+  .pill.running { color:var(--ok); background:var(--ok-bg); } .pill.running::before { opacity:1; animation:pulse 1.4s ease-in-out infinite; }
+  .pill.stopping { color:var(--warn); background:var(--warn-bg); }
+  .pill.error { color:var(--bad); background:var(--bad-bg); }
+  @keyframes pulse { 50% { opacity:.25; } }
+  @media (prefers-reduced-motion: reduce) { .pill.running::before { animation:none; } }
+
+  .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(112px, 1fr)); gap:12px; margin-bottom:16px; }
+  .tile { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:12px 16px; box-shadow:var(--shadow); }
+  .tile .v { font-size:26px; font-weight:700; letter-spacing:-.02em; line-height:1.15; }
+  .tile .k { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+
+  details { margin-top:12px; }
+  summary { cursor:pointer; color:var(--muted); font-size:13px; padding:2px 0; }
+  .log { background:var(--surface-2); border-radius:var(--r-sm); padding:10px 12px; font:12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; max-height:150px; overflow:auto; white-space:pre-wrap; margin-top:8px; word-break:break-word; }
+
+  .feed { display:flex; flex-direction:column; gap:8px; }
+  .item { display:grid; grid-template-columns:52px 1fr auto; gap:4px 14px; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:10px 14px; }
+  .item.like { border-color:color-mix(in srgb, var(--ok) 40%, var(--line)); background:color-mix(in srgb, var(--ok-bg) 55%, var(--surface)); }
+  .chip { grid-row:span 2; display:grid; place-items:center; width:48px; height:48px; border-radius:12px; font-weight:700; font-size:17px; background:var(--chip); color:var(--muted); }
+  .chip.hi { background:var(--ok-bg); color:var(--ok); } .chip.mid { background:var(--warn-bg); color:var(--warn); }
+  .item .nm { font-weight:600; }
+  .item .nm small { color:var(--muted); font-weight:400; font-size:13px; margin-left:6px; }
+  .badge { font-size:12px; font-weight:600; padding:2px 9px; border-radius:999px; background:var(--chip); color:var(--muted); justify-self:end; }
+  .badge.like { background:var(--ok-bg); color:var(--ok); }
+  .item .why { grid-column:2 / span 2; color:var(--muted); font-size:13px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .empty { text-align:center; color:var(--muted); padding:34px 12px; border:1px dashed var(--line); border-radius:var(--r); }
+
+  label { display:flex; flex-direction:column; font-size:13px; color:var(--muted); gap:5px; }
+  input[type=number], input[type=text], input:not([type]), input[type=password] { font:inherit; padding:8px 10px; border-radius:var(--r-sm); border:1px solid var(--line); background:var(--bg); color:var(--fg); width:140px; }
+  input[type=password], input[type=text] { width:260px; max-width:100%; }
+  input:focus { border-color:var(--accent); }
+  .grid { display:flex; flex-wrap:wrap; gap:14px 18px; }
+  .field { display:flex; flex-direction:column; gap:5px; font-size:13px; color:var(--muted); }
+  .field .u { display:flex; align-items:center; gap:8px; color:var(--fg); }
+  .field .u span { color:var(--muted); font-size:13px; }
+  .groups { display:grid; grid-template-columns:repeat(auto-fit, minmax(340px, 1fr)); gap:16px; margin-bottom:16px; }
+  .groups .card { margin:0; }
+  .msg { min-height:1.4em; font-size:13px; margin-left:4px; }
+
+  .switch { appearance:none; -webkit-appearance:none; width:42px; height:24px; border-radius:999px; background:var(--chip); position:relative; cursor:pointer; border:0; transition:background .15s; flex:none; }
+  .switch::after { content:""; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.35); transition:transform .15s; }
+  .switch:checked { background:var(--accent); } .switch:checked::after { transform:translateX(18px); }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+  .chips span { background:var(--accent-soft); color:var(--accent); font-weight:600; font-size:13px; padding:3px 11px; border-radius:999px; }
+  .nextlist { list-style:none; margin:8px 0 0; padding:0; color:var(--muted); font-size:13px; }
+  .nextlist li { padding:3px 0; }
+
+  .bars { position:relative; display:flex; align-items:flex-end; gap:5px; height:170px; margin:22px 0 4px; padding-top:18px; border-bottom:1px solid var(--line); }
+  .bar { flex:1; background:var(--chip); border-radius:5px 5px 0 0; min-height:3px; position:relative; }
+  .bar.hi { background:var(--accent); }
+  .bar span { position:absolute; top:-18px; left:0; right:0; text-align:center; font-size:12px; color:var(--muted); }
+  .thr { position:absolute; top:0; bottom:0; width:0; border-left:2px dashed var(--fg); opacity:.55; pointer-events:none; }
+  .thr b { position:absolute; top:-20px; left:6px; font-size:11px; font-weight:600; white-space:nowrap; background:var(--surface); padding:0 4px; }
+  .axis { display:flex; gap:5px; font-size:12px; color:var(--muted); } .axis div { flex:1; text-align:center; }
+
+  ul.checks { list-style:none; padding:0; margin:0; }
+  ul.checks li { display:flex; align-items:center; gap:12px; padding:9px 0; border-bottom:1px solid var(--line); }
+  ul.checks li:last-child { border-bottom:0; }
+  .glyph { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-size:13px; font-weight:700; background:var(--chip); color:var(--muted); flex:none; }
+  .glyph.ok { background:var(--ok-bg); color:var(--ok); }
+
+  @media (max-width: 560px) {
+    main { padding:14px; } header { padding:10px 14px; }
+    .item { grid-template-columns:44px 1fr; } .item .badge { grid-column:2; justify-self:start; }
+    .chip { width:42px; height:42px; font-size:15px; } .item .why { grid-column:2; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>Dating Copilot</h1>
+  <div class="brand"><i></i>Dating Copilot</div>
   <nav>
     <button data-tab="run" class="on">Run</button>
     <button data-tab="calib">Calibration</button>
@@ -52,126 +138,204 @@
 </header>
 <main>
   <section id="run" class="on">
-    <div class="row">
-      <button class="primary" id="start">Start</button>
-      <button class="secondary" id="stop" disabled>Stop</button>
-      <span class="pill" id="state">idle</span>
-      <span class="muted" id="summary"></span>
+    <div class="card">
+      <div class="row">
+        <button class="primary" id="start">Start</button>
+        <button class="secondary" id="stop" disabled>Stop</button>
+        <span class="pill" id="state" aria-live="polite">idle</span>
+        <span class="muted small" id="summary"></span>
+      </div>
+      <details>
+        <summary>Session log</summary>
+        <div class="log" id="log">No session running.</div>
+      </details>
     </div>
-    <div class="log" id="log">No session running.</div>
-    <table><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Decision</th><th>Reason</th></tr></thead>
-    <tbody id="feed"></tbody></table>
+    <div class="stats">
+      <div class="tile"><div class="v" id="s_total">0</div><div class="k">Recent profiles</div></div>
+      <div class="tile"><div class="v" id="s_likes">0</div><div class="k">Liked</div></div>
+      <div class="tile"><div class="v" id="s_rate">-</div><div class="k">Like rate</div></div>
+    </div>
+    <div class="feed" id="feed"></div>
   </section>
 
   <section id="calib">
-    <p class="muted">Score distribution of everything that reached scoring. Use it to pick the like threshold.</p>
-    <div class="row"><span class="pill" id="rate"></span></div>
-    <div class="bars" id="bars"></div><div class="axis" id="axis"></div>
+    <p class="muted">Score distribution of everything that reached scoring. Bars at or above your like threshold are coloured. Use this to pick the threshold.</p>
+    <div class="stats">
+      <div class="tile"><div class="v" id="t_total">0</div><div class="k">Profiles logged</div></div>
+      <div class="tile"><div class="v" id="t_likes">0</div><div class="k">Liked</div></div>
+      <div class="tile"><div class="v" id="rate">-</div><div class="k">Like rate</div></div>
+    </div>
+    <div class="card">
+      <div class="bars" id="bars"></div><div class="axis" id="axis"></div>
+      <p class="muted small" id="calnote" style="margin:12px 0 0"></p>
+    </div>
   </section>
 
   <section id="schedule">
-    <p class="muted">Runs start by themselves at these times while this app is open. Scheduled runs keep the random skip and quiet hours. Limits protect the account: at most <span id="lim_n">4</span> a day, <span id="lim_g">3</span>+ hours apart.</p>
-    <div class="grid">
-      <label><span>Enabled</span><input type="checkbox" id="sch_on" style="width:auto"></label>
-      <label>Times (24h, comma separated)<input id="sch_times" style="width:260px" placeholder="09:17, 13:42, 18:05"></label>
-      <label>Jitter (minutes, 0-30)<input id="sch_jit" type="number"></label>
+    <div class="card">
+      <h2>Automatic sessions</h2>
+      <p class="muted">Runs start by themselves at these times while this app is open. Scheduled runs keep the random skip and quiet hours. Limits protect the account: at most <span id="lim_n">4</span> a day, <span id="lim_g">3</span>+ hours apart.</p>
+      <div class="grid">
+        <label class="field"><span>Enabled</span><input type="checkbox" class="switch" id="sch_on"></label>
+        <label class="field">Times (24h, comma separated)<input id="sch_times" type="text" placeholder="09:17, 13:42, 18:05"></label>
+        <label class="field">Jitter (minutes, 0-30)<input id="sch_jit" type="number"></label>
+      </div>
+      <div class="chips" id="sch_chips"></div>
+      <div class="row" style="margin-top:14px"><button class="primary" id="sch_save">Save schedule</button> <span class="msg" id="sch_msg"></span></div>
+      <ul class="nextlist" id="sch_next"></ul>
     </div>
-    <button class="primary" id="sch_save">Save schedule</button> <span class="msg" id="sch_msg"></span>
-    <p class="muted" id="sch_next"></p>
   </section>
 
   <section id="settings">
     <p class="muted">Stop the session before saving. Filters write to <code>config/rubric.yaml</code>; the threshold to <code>config/scoring.yaml</code>. Scoring weights are not editable here.</p>
-    <div class="grid" id="fields"></div>
-    <button class="primary" id="save">Save</button> <span class="msg" id="smsg"></span>
+    <div class="groups" id="fields"></div>
+    <div class="row"><button class="primary" id="save">Save</button> <span class="msg" id="smsg"></span></div>
   </section>
 
   <section id="setup">
-    <ul class="checks" id="checks"></ul>
-    <div class="row"><button class="secondary" id="login">Log in to Tinder</button>
-      <button class="secondary" id="logincancel" style="display:none">Cancel</button>
-      <span class="pill" id="loginstate"></span>
-      <span class="muted">Opens the browser window. Log in by hand; it closes itself and remembers you.</span></div>
-    <div class="log" id="loginlog" style="display:none"></div>
-    <h3>API keys</h3>
-    <p class="muted" id="kcnote"></p>
-    <div class="grid" id="secrets"></div>
-    <span class="msg" id="kmsg"></span>
+    <div class="card"><ul class="checks" id="checks"></ul></div>
+    <div class="card">
+      <h2>Tinder</h2>
+      <p class="muted">Opens the browser window. Log in by hand; it closes itself and remembers you.</p>
+      <div class="row">
+        <button class="secondary" id="login">Log in to Tinder</button>
+        <button class="secondary" id="logincancel" style="display:none">Cancel</button>
+        <span class="pill" id="loginstate"></span>
+      </div>
+      <div class="log" id="loginlog" style="display:none"></div>
+    </div>
+    <div class="card">
+      <h2>API keys</h2>
+      <p class="muted" id="kcnote"></p>
+      <div class="grid" id="secrets"></div>
+      <span class="msg" id="kmsg"></span>
+    </div>
   </section>
 </main>
 <script>
 const TOKEN = "__TOKEN__";
 const $ = (id) => document.getElementById(id);
-const FIELDS = [
-  ["age_min","Min age"],["age_max","Max age"],["distance_km_max","Max distance (km)"],
-  ["height_max_cm","Max height (cm)"],["auto_like","Like threshold (0-100)"],
-  ["max_likes","Max likes / session (1-100)"],["max_profiles","Max profiles / session (10-500)"],
-  ["quiet_start","Quiet hours start"],["quiet_end","Quiet hours end"]];
+let AUTO_LIKE = null;
+const GROUPS = [
+  ["Filters", "Profiles outside these are skipped for free.", [
+    ["age_min","Min age","years"],["age_max","Max age","years"],
+    ["distance_km_max","Max distance","km"],["height_max_cm","Max height (if stated)","cm"]]],
+  ["Like threshold", "Score needed to like a profile.", [["auto_like","auto_like (0-100)","pts"]]],
+  ["Session limits", "Hard ceilings protect the account.", [
+    ["max_likes","Max likes / session (1-100)","likes"],["max_profiles","Max profiles / session (10-500)","profiles"]]],
+  ["Quiet hours", "No sessions start in this window (Paris time).", [
+    ["quiet_start","From (hour)","h"],["quiet_end","Until (hour)","h"]]]];
+const FIELDS = GROUPS.flatMap(g => g[2]);
 
 async function api(path, body) {
   const opt = body === undefined ? {} : {method:"POST", headers:{"X-App-Token":TOKEN,"Content-Type":"application/json"}, body:JSON.stringify(body)};
   const r = await fetch(path, opt);
   return {ok:r.ok, data: await r.json().catch(() => ({}))};
 }
-function cell(tr, text, cls) { const td = document.createElement("td"); td.textContent = text; if (cls) td.className = cls; tr.appendChild(td); }
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+async function loadThreshold() { const r = await api("/api/settings"); if (r.ok) AUTO_LIKE = Number(r.data.auto_like); }
 
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button, section").forEach(e => e.classList.remove("on"));
   b.classList.add("on"); $(b.dataset.tab).classList.add("on");
+  if (b.dataset.tab === "run") refresh();
   if (b.dataset.tab === "calib") loadStats();
   if (b.dataset.tab === "settings") loadSettings();
   if (b.dataset.tab === "schedule") loadSchedule();
   if (b.dataset.tab === "setup") loadSetup();
 });
 
+function chipClass(score) {
+  if (score === null || score === undefined || AUTO_LIKE === null) return "chip";
+  return score >= AUTO_LIKE ? "chip hi" : (score >= AUTO_LIKE - 10 ? "chip mid" : "chip");
+}
+
 async function refresh() {
   const s = (await api("/api/status")).data;
-  $("state").textContent = s.state;
+  if (AUTO_LIKE === null) await loadThreshold();
+  $("state").textContent = s.state; $("state").className = "pill " + s.state;
   $("start").disabled = s.running; $("stop").disabled = !s.running;
+  $("stop").className = s.running ? "danger" : "secondary";
   $("log").textContent = s.messages.length ? s.messages.join("\n") : "No session running.";
   $("log").scrollTop = 1e9;
   // Mirror progress onto the Setup tab so login messages and errors show.
   $("login").disabled = s.running;
   $("logincancel").style.display = s.running ? "" : "none";
   $("loginstate").textContent = s.running ? "running" : "";
+  $("loginstate").className = "pill " + (s.running ? "running" : "");
   if (s.messages.length) { $("loginlog").style.display = "block"; $("loginlog").textContent = s.messages.join("\n"); }
   else if (s.running) { $("loginlog").style.display = "block"; $("loginlog").textContent = "Starting..."; }
   else if ($("loginlog").textContent === "Browser opening...") { $("loginlog").style.display = "none"; }
   const d = s.last_summary;
-  $("summary").textContent = d && !s.running ? `Last: ${d.reviewed} reviewed, ${d.likes} likes. Stopped: ${d.stopped ?? "finished"}` : "";
+  $("summary").textContent = d && !s.running ? `Last session: ${d.reviewed} reviewed, ${d.likes} liked. Stopped: ${d.stopped ?? "finished"}` : "";
+
   const feed = (await api("/api/feed?limit=40")).data;
   const body = $("feed"); body.textContent = "";
-  feed.forEach((p, i) => { const tr = document.createElement("tr");
-    cell(tr, feed.length - i); cell(tr, `${p.name}, ${p.age ?? "?"}`);
-    cell(tr, p.score ?? "-"); cell(tr, p.decision, p.decision); cell(tr, p.why || "");
-    body.appendChild(tr); });
+  const likes = feed.filter(p => p.decision === "like").length;
+  $("s_total").textContent = feed.length; $("s_likes").textContent = likes;
+  $("s_rate").textContent = feed.length ? Math.round(likes / feed.length * 100) + "%" : "-";
+  if (!feed.length) { body.appendChild(el("div", "empty", "No profiles yet. Press Start to begin a session.")); return; }
+  feed.forEach(p => {
+    const row = el("div", "item " + (p.decision === "like" ? "like" : ""));
+    row.appendChild(el("div", chipClass(p.score), p.score ?? "-"));
+    const nm = el("div", "nm", p.name ?? "?");
+    nm.appendChild(el("small", "", [p.age, p.distance_km != null ? p.distance_km + " km" : null].filter(v => v != null).join(" · ")));
+    row.appendChild(nm);
+    row.appendChild(el("div", "badge " + (p.decision === "like" ? "like" : ""), p.decision === "like" ? "Liked" : "Passed"));
+    const why = el("div", "why", p.why || (p.score == null ? "Filtered before scoring" : ""));
+    why.title = p.why || "";
+    row.appendChild(why);
+    body.appendChild(row);
+  });
 }
 $("start").onclick = async () => { $("start").disabled = true; await api("/api/start", {}); refresh(); };
 $("stop").onclick = async () => { await api("/api/stop", {}); refresh(); };
 
 async function loadStats() {
+  await loadThreshold();
   const s = (await api("/api/stats")).data;
-  $("rate").textContent = s.total ? `${s.likes} of ${s.total} liked (${Math.round(s.like_rate*100)}%)` : "No data yet";
+  $("t_total").textContent = s.total; $("t_likes").textContent = s.likes;
+  $("rate").textContent = s.total ? Math.round(s.like_rate * 100) + "%" : "-";
   const max = Math.max(1, ...s.histogram.map(b => b.count));
   $("bars").textContent = ""; $("axis").textContent = "";
   s.histogram.forEach(b => {
-    const bar = document.createElement("div"); bar.className = "bar";
+    // Coloured from the threshold up; the bucket containing it is split exactly.
+    const bar = el("div", "bar" + (AUTO_LIKE !== null && b.from >= AUTO_LIKE ? " hi" : ""));
+    if (AUTO_LIKE !== null && b.from < AUTO_LIKE && AUTO_LIKE < b.to) {
+      const f = Math.round((AUTO_LIKE - b.from) / (b.to - b.from) * 100);
+      bar.style.background = `linear-gradient(90deg, var(--chip) ${f}%, var(--accent) ${f}%)`;
+    }
     bar.style.height = (b.count / max * 100) + "%";
-    const n = document.createElement("span"); n.textContent = b.count; bar.appendChild(n);
-    $("bars").appendChild(bar);
-    const a = document.createElement("div"); a.textContent = b.from; $("axis").appendChild(a);
+    bar.appendChild(el("span", "", b.count)); $("bars").appendChild(bar);
+    $("axis").appendChild(el("div", "", b.from));
   });
+  if (AUTO_LIKE !== null) {
+    const thr = el("div", "thr"); thr.style.left = AUTO_LIKE + "%"; thr.appendChild(el("b", "", "threshold " + AUTO_LIKE));
+    $("bars").appendChild(thr);
+  }
+  $("calnote").textContent = s.total
+    ? "Aim for a like rate you are comfortable with (the README suggests roughly 15-30%). Raise the threshold in Settings to be pickier."
+    : "No data yet. Run a session and the scores will appear here.";
 }
 async function loadSettings() {
   const s = (await api("/api/settings")).data; $("fields").textContent = "";
-  FIELDS.forEach(([k, label]) => { const l = document.createElement("label"); l.textContent = label;
-    const i = document.createElement("input"); i.type = "number"; i.id = "f_" + k; i.value = s[k]; l.appendChild(i); $("fields").appendChild(l); });
+  GROUPS.forEach(([title, hint, fields]) => {
+    const card = el("div", "card"); card.appendChild(el("h2", "", title)); card.appendChild(el("p", "muted small", hint));
+    const grid = el("div", "grid");
+    fields.forEach(([k, label, unit]) => {
+      const f = el("label", "field", label); const u = el("div", "u");
+      const i = el("input"); i.type = "number"; i.id = "f_" + k; i.value = s[k]; u.appendChild(i); u.appendChild(el("span", "", unit));
+      f.appendChild(u); grid.appendChild(f);
+    });
+    card.appendChild(grid); $("fields").appendChild(card);
+  });
 }
 $("save").onclick = async () => {
   const body = {}; FIELDS.forEach(([k]) => body[k] = $("f_" + k).value);
   const r = await api("/api/settings", body);
   $("smsg").style.color = r.ok ? "var(--ok)" : "var(--bad)";
   $("smsg").textContent = r.ok ? "Saved." : (r.data.error || "Could not save");
+  if (r.ok) loadThreshold();
 };
 $("logincancel").onclick = async () => { await api("/api/stop", {}); refresh(); };
 $("login").onclick = async () => {
@@ -185,11 +349,10 @@ const SECRETS = [["ANTHROPIC_API_KEY","Anthropic API key","password"],
 function buildSecrets() {
   $("secrets").textContent = "";
   SECRETS.forEach(([name, label, type]) => {
-    const l = document.createElement("label"); l.textContent = label;
-    const i = document.createElement("input"); i.type = type; i.autocomplete = "off"; i.style.width = "260px"; i.placeholder = "paste to replace";
-    const row = document.createElement("div"); row.className = "row";
-    const save = document.createElement("button"); save.className = "secondary"; save.textContent = "Save";
-    const clear = document.createElement("button"); clear.className = "secondary"; clear.textContent = "Clear";
+    const l = el("label", "field", label);
+    const i = el("input"); i.type = type; i.autocomplete = "off"; i.placeholder = "paste to replace";
+    const row = el("div", "row");
+    const save = el("button", "secondary", "Save"); const clear = el("button", "secondary", "Clear");
     const send = async (value) => {
       const r = await api("/api/secrets", {name, value});
       $("kmsg").style.color = r.ok ? "var(--ok)" : "var(--bad)";
@@ -200,13 +363,20 @@ function buildSecrets() {
     row.append(i, save, clear); l.appendChild(row); $("secrets").appendChild(l);
   });
 }
+function renderChips() {
+  $("sch_chips").textContent = "";
+  $("sch_times").value.split(",").map(t => t.trim()).filter(Boolean).forEach(t => $("sch_chips").appendChild(el("span", "", t)));
+}
+$("sch_times").oninput = renderChips;
 async function loadSchedule() {
   const s = (await api("/api/schedule")).data;
   $("sch_on").checked = !!s.enabled; $("sch_times").value = (s.times || []).join(", ");
-  $("sch_jit").value = s.jitter_minutes;
+  $("sch_jit").value = s.jitter_minutes; renderChips();
   if (s.limits && s.limits.max_sessions_per_day) { $("lim_n").textContent = s.limits.max_sessions_per_day; $("lim_g").textContent = s.limits.min_gap_hours; }
-  $("sch_next").textContent = (s.next_runs && s.next_runs.length)
-    ? "Next: " + s.next_runs.map(t => new Date(t).toLocaleString()).join(" · ") : (s.enabled ? "" : "Scheduling is off.");
+  const list = $("sch_next"); list.textContent = "";
+  if (s.next_runs && s.next_runs.length) {
+    s.next_runs.forEach(t => list.appendChild(el("li", "", "Next: " + new Date(t).toLocaleString())));
+  } else { list.appendChild(el("li", "", s.enabled ? "No upcoming runs." : "Scheduling is off.")); }
 }
 $("sch_save").onclick = async () => {
   const times = $("sch_times").value.split(",").map(t => t.trim()).filter(Boolean);
@@ -223,9 +393,9 @@ async function loadSetup() {
   $("kcnote").textContent = s.keychain ? "Keys are stored in your system keychain and never shown again." : "No keychain available here: put keys in .env in the project folder.";
   [["Anthropic API key", s.anthropic_key], ["Telegram (optional)", s.telegram],
    ["Browser (Chromium) installed", s.chromium], ["Tinder session saved", s.tinder_session], [".env file present", s.env_file]].forEach(([t, ok]) => {
-    const li = document.createElement("li"); li.textContent = (ok ? "OK  " : "--  ") + t; $("checks").appendChild(li); });
+    const li = el("li"); li.appendChild(el("span", "glyph" + (ok ? " ok" : ""), ok ? "✓" : "–")); li.appendChild(el("span", "", t)); $("checks").appendChild(li); });
 }
-refresh(); setInterval(refresh, 2500);
+loadThreshold(); refresh(); setInterval(refresh, 2500);
 </script>
 </body>
 </html>
