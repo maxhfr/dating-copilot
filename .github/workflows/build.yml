@@ -1,0 +1,85 @@
+name: build
+
+# Builds the Mac app and the Windows app on GitHub's servers and smoke-tests
+# them. Run it by hand (Actions tab > build > Run workflow), push a tag like
+# v0.1.0, or change packaging files on the working branch.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+    branches: [phase1-platform-interface]
+    paths:
+      - ".github/workflows/build.yml"
+      - "packaging/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Unit tests (offline: no browser, no API calls)
+        run: |
+          python test_parsers.py
+          python test_session.py
+          python test_app.py
+          python test_schedule.py
+          python test_packaging.py
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: mac
+          - os: windows-latest
+            name: windows
+    runs-on: ${{ matrix.os }}
+    env:
+      DATING_COPILOT_HOME: ${{ runner.temp }}/dating-copilot-home
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt pyinstaller
+      - name: Build
+        run: pyinstaller --noconfirm --clean packaging/dating-copilot.spec
+
+      - name: Smoke test (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          "dist/Dating Copilot.app/Contents/MacOS/dating-copilot" --check
+          cat "$DATING_COPILOT_HOME/app.log"
+
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # A windowed app returns at once in PowerShell, so wait for it.
+          $p = Start-Process -FilePath "dist\dating-copilot\dating-copilot.exe" `
+               -ArgumentList "--check" -Wait -PassThru
+          Get-Content "$env:DATING_COPILOT_HOME\app.log"
+          if ($p.ExitCode -ne 0) { throw "check failed with exit code $($p.ExitCode)" }
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: ditto -c -k --keepParent "dist/Dating Copilot.app" DatingCopilot-mac.zip
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist\dating-copilot -DestinationPath DatingCopilot-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DatingCopilot-${{ matrix.name }}
+          path: DatingCopilot-*.zip
+          if-no-files-found: error

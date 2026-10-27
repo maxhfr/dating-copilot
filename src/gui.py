@@ -2,7 +2,8 @@
 
     python src/gui.py
 
-Loads .env from the project folder before anything reads the environment.
+Loads the keychain and .env before anything reads the environment.
+`--check` imports every module and exits 0/1 (used by CI to smoke-test a build).
 """
 
 import os
@@ -13,18 +14,6 @@ import webbrowser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-
-
-def load_env():
-    import runlog
-    for f in (runlog.home() / ".env", ROOT / ".env"):
-        if not f.exists():
-            continue
-        for line in f.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip())
 
 
 def set_dock_icon():
@@ -48,7 +37,40 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
+CHECK_MODULES = ("judge", "main", "notifier", "runlog", "settings", "secrets_store",
+                 "scheduler", "controller", "app", "paths", "browser_setup",
+                 "keep_awake", "envfile", "cli", "platforms.base",
+                 "platforms.tinder", "platforms.capture")
+
+
+def check() -> int:
+    """Import everything the app needs and verify the bundled files exist.
+    Returns 0 when the build looks healthy, 1 otherwise."""
+    import importlib
+    import traceback
+    import runlog
+    try:
+        os.environ.setdefault("ANTHROPIC_API_KEY", "check")
+        for name in CHECK_MODULES:
+            importlib.import_module(name)
+        import app
+        import paths
+        assert (paths.config_dir() / "rubric.yaml").exists(), "rubric.yaml missing"
+        assert (paths.config_dir() / "scoring.yaml").exists(), "scoring.yaml missing"
+        assert paths.icon_png().exists(), "icon missing"
+        assert app.PAGE.exists(), "ui.html missing"
+        app.create_app()
+        runlog.log_line("check ok")
+        return 0
+    except Exception:
+        runlog.log_line("check FAILED:\n" + traceback.format_exc())
+        traceback.print_exc()
+        return 1
+
+
 def main():
+    if "--check" in sys.argv:
+        return check()
     import runlog
     import secrets_store
     if getattr(sys, "frozen", False):
@@ -57,9 +79,11 @@ def main():
         import browser_setup
         browser_setup.use_standard_browsers_path()   # before any Playwright launch
         # A packaged app has no terminal: keep prints and errors in a file.
-        sys.stdout = sys.stderr = open(runlog.home() / "app.log", "a", buffering=1)
+        sys.stdout = sys.stderr = open(runlog.home() / "app.log", "a", buffering=1,
+                                       encoding="utf-8", errors="replace")
     secrets_store.load_into_env()      # shell > keychain > .env
-    load_env()
+    import envfile
+    envfile.load_env()
     if not os.environ.get("ANTHROPIC_API_KEY"):
         print("ANTHROPIC_API_KEY is not set (put it in .env). Starting anyway; "
               "sessions will fail until it is.")

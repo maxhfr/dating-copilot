@@ -222,6 +222,25 @@ class LoginTests(unittest.TestCase):
         self.assertTrue(any("timed out" in m for m in status))
 
 
+class CliTests(unittest.TestCase):
+    def test_cli_passes_platform_and_loads_env(self):
+        import cli
+        seen = {}
+
+        async def fake_run_session(platform="tinder", **kw):
+            seen["platform"] = platform
+            return {"reviewed": 0}
+        orig = main.run_session
+        main.run_session = fake_run_session
+        try:
+            cli.run(["cli.py"])
+            self.assertEqual(seen["platform"], "tinder")
+            cli.run(["cli.py", "tinder"])
+            self.assertEqual(seen["platform"], "tinder")
+        finally:
+            main.run_session = orig
+
+
 class RecordingAwake:
     def __init__(self):
         self.calls = []

@@ -148,6 +148,27 @@ app, choose **Open**, and confirm. If macOS still refuses:
   (it serves the UI and seeds its config); the macOS `.app` bundle itself has
   not been built yet.
 
+## Windows
+
+The same app runs on Windows (the browser window comes from Edge WebView2).
+
+- **Easiest: let GitHub build it.** On GitHub open the repository's **Actions**
+  tab, choose **build**, press **Run workflow**, and when it finishes download
+  `DatingCopilot-windows.zip` (and `DatingCopilot-mac.zip`) from the run's
+  Artifacts. Unzip it and double-click `dating-copilot.exe`.
+- **Or build it yourself** on the Windows PC:
+  `powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1`.
+- The app is unsigned, so Windows says "Windows protected your PC": click
+  **More info** then **Run anyway**.
+- From source: `run.bat app` (window) or `run.bat swipe` (command line).
+- Keep the PC awake during sessions (done automatically), and open the app at
+  login with `python packaging\launch_agent.py install` (`uninstall` removes it).
+- The Tinder login is per machine, so log in again on each. Don't run the app
+  on two machines at the same time: the account is fragile and the daily
+  session limits are counted per machine.
+- Not verified on a real Windows PC yet: the CI build and import check pass,
+  but tell me what you see when you try it.
+
 ## Tuning
 
 `auto_like: 65` is a starting guess, not a calibrated number. Read the

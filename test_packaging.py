@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, "src")
+sys.path.insert(0, "packaging")
 _HOME = tempfile.TemporaryDirectory()
 os.environ["DATING_COPILOT_HOME"] = _HOME.name
 
@@ -46,6 +47,69 @@ class IconTests(unittest.TestCase):
         with mock.patch.object(sys, "frozen", True, create=True), \
                 mock.patch.object(sys, "_MEIPASS", "/bundle", create=True):
             self.assertEqual(paths.icon_png(), Path("/bundle/icon/icon_1024.png"))
+
+
+class WindowsTests(unittest.TestCase):
+    def test_ico_is_valid_and_has_several_sizes(self):
+        data = (Path("packaging") / "icon" / "icon.ico").read_bytes()
+        self.assertEqual(data[:4], b"\x00\x00\x01\x00")        # ICO header
+        self.assertGreaterEqual(int.from_bytes(data[4:6], "little"), 6)
+
+    def test_keep_awake_uses_execution_state_on_windows(self):
+        import keep_awake
+        calls = []
+        with mock.patch.object(keep_awake.sys, "platform", "win32"), \
+                mock.patch.object(keep_awake, "_win_set",
+                                  side_effect=lambda on: calls.append(on) or True):
+            k = keep_awake.KeepAwake()
+            self.assertFalse(k.active)
+            self.assertTrue(k.set(True))
+            self.assertTrue(k.active)
+            self.assertTrue(k.set(True))            # idempotent
+            self.assertFalse(k.set(False))
+            self.assertFalse(k.active)
+            self.assertEqual(calls, [True, False])
+
+    def test_keep_awake_survives_win_api_error(self):
+        import keep_awake
+        with mock.patch.object(keep_awake.sys, "platform", "win32"), \
+                mock.patch.object(keep_awake, "_win_set", side_effect=OSError("nope")):
+            self.assertFalse(keep_awake.KeepAwake().set(True))
+
+    def test_startup_script_contents(self):
+        import launch_agent
+        cmd = launch_agent.build_startup_cmd(Path("C:/apps/dc"))
+        self.assertIn("run.bat", cmd)
+        self.assertIn("app", cmd)
+        self.assertTrue(cmd.startswith("@echo off"))
+        exe = launch_agent.build_startup_cmd(Path("C:/apps/dc"), exe="C:/x/dating-copilot.exe")
+        self.assertIn('start "" "C:/x/dating-copilot.exe"', exe)
+        self.assertNotIn("run.bat", exe)
+
+    def test_startup_path_is_in_the_startup_folder(self):
+        import launch_agent
+        with mock.patch.dict(os.environ, {"APPDATA": "C:/Users/x/AppData/Roaming"}):
+            p = str(launch_agent.startup_cmd_path()).replace("\\", "/")
+        self.assertTrue(p.endswith("Start Menu/Programs/Startup/Dating Copilot.cmd"))
+
+    def test_run_bat_exists(self):
+        text = Path("run.bat").read_text()
+        self.assertIn("src\\gui.py", text)
+        self.assertIn("src\\cli.py", text)
+
+
+class EnvFileTests(unittest.TestCase):
+    def test_loads_without_overriding_existing(self):
+        import envfile
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.dict(os.environ, {"DATING_COPILOT_HOME": d, "KEEP_ME": "shell"}):
+            (Path(d) / ".env").write_text(
+                "# comment\nNEW_VAR=from_file\nKEEP_ME=file\n\nBAD LINE\n", encoding="utf-8")
+            os.environ.pop("NEW_VAR", None)
+            envfile.load_env()
+            self.assertEqual(os.environ["NEW_VAR"], "from_file")
+            self.assertEqual(os.environ["KEEP_ME"], "shell")
+            os.environ.pop("NEW_VAR", None)
 
 
 class BrowserTests(unittest.TestCase):

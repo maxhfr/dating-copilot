@@ -143,6 +143,13 @@ class SettingsTests(unittest.TestCase):
         self.assertNotIn(12, h)
 
 
+class CheckTests(unittest.TestCase):
+    def test_gui_check_passes_from_source(self):
+        import gui
+        self.assertEqual(gui.check(), 0)
+        self.assertIn("check ok", (runlog.home() / "app.log").read_text())
+
+
 class AppTests(unittest.TestCase):
     def setUp(self):
         self.ctl = FakeController()

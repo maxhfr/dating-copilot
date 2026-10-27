@@ -96,7 +96,10 @@ registry, local control app (Run / Calibration / Settings / Schedule /
 Setup, SQLite run log, keychain), scheduler with limits. Phase 4 has a
 PyInstaller spec and build script, validated on Linux; the macOS `.app` build
 and the native window still need a first run on Max's Mac. Messaging code is
-archived in `_archive/messaging/`. Phase 5 (Hinge, Bumble) has not started.
+archived in `_archive/messaging/`. A Windows build exists (spec, `run.bat`,
+GitHub Actions workflow in `.github/workflows/build.yml` producing the Mac and
+Windows zips); it is CI-verified but not yet tried on a real Windows PC.
+Phase 5 (Hinge, Bumble) has not started.
 
 Build in this order. Stop and check with Max after each phase.
 
