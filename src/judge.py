@@ -16,15 +16,18 @@ aren't re-billed on every call.
 
 import json
 import os
+from pathlib import Path
 import yaml
 from anthropic import Anthropic
 
 client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 MODEL = "claude-haiku-4-5-20251001"
 
-with open("config/rubric.yaml") as f:
+ROOT = Path(__file__).resolve().parent.parent
+
+with open(ROOT / "config" / "rubric.yaml") as f:
     RUBRIC = yaml.safe_load(f)
-with open("config/scoring.yaml") as f:
+with open(ROOT / "config" / "scoring.yaml") as f:
     WEIGHTS = yaml.safe_load(f)
 
 AUTO_LIKE = WEIGHTS["thresholds"]["auto_like"]

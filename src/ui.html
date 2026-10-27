@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dating Copilot</title>
+<style>
+  :root { --bg:#fff; --fg:#1d1d1f; --muted:#6e6e73; --line:#e5e5ea; --accent:#d6336c; --ok:#2b8a3e; --bad:#c92a2a; --card:#f5f5f7; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#1c1c1e; --fg:#f2f2f7; --muted:#98989d; --line:#3a3a3c; --accent:#f06595; --ok:#51cf66; --bad:#ff6b6b; --card:#2c2c2e; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.45 -apple-system, system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  header { display:flex; gap:8px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--line); }
+  header h1 { font-size:16px; margin:0 12px 0 0; }
+  nav button { background:none; border:0; padding:6px 10px; font:inherit; color:var(--muted); cursor:pointer; border-radius:6px; }
+  nav button.on { color:var(--fg); background:var(--card); font-weight:600; }
+  main { padding:16px; max-width:900px; margin:0 auto; }
+  section { display:none; } section.on { display:block; }
+  button.primary { background:var(--accent); color:#fff; border:0; padding:9px 18px; border-radius:8px; font:inherit; font-weight:600; cursor:pointer; }
+  button.secondary { background:var(--card); color:var(--fg); border:1px solid var(--line); padding:9px 18px; border-radius:8px; font:inherit; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+  .pill { padding:3px 10px; border-radius:999px; background:var(--card); font-size:13px; }
+  .log { background:var(--card); border-radius:8px; padding:10px; font:12px/1.5 ui-monospace, monospace; max-height:140px; overflow:auto; white-space:pre-wrap; }
+  table { width:100%; border-collapse:collapse; margin-top:12px; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); font-size:14px; vertical-align:top; }
+  th { color:var(--muted); font-weight:500; }
+  .like { color:var(--ok); font-weight:600; } .pass { color:var(--muted); }
+  label { display:flex; flex-direction:column; font-size:13px; color:var(--muted); gap:4px; }
+  input { font:inherit; padding:7px 9px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--fg); width:130px; }
+  .grid { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:14px; }
+  .bars { display:flex; align-items:flex-end; gap:6px; height:140px; margin:12px 0 4px; }
+  .bar { flex:1; background:var(--accent); border-radius:4px 4px 0 0; min-height:2px; position:relative; }
+  .bar span { position:absolute; top:-18px; left:0; right:0; text-align:center; font-size:12px; color:var(--muted); }
+  .axis { display:flex; gap:6px; font-size:12px; color:var(--muted); } .axis div { flex:1; text-align:center; }
+  .msg { color:var(--bad); min-height:1.4em; }
+  ul.checks { list-style:none; padding:0; } ul.checks li { padding:6px 0; border-bottom:1px solid var(--line); }
+  .muted { color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Dating Copilot</h1>
+  <nav>
+    <button data-tab="run" class="on">Run</button>
+    <button data-tab="calib">Calibration</button>
+    <button data-tab="settings">Settings</button>
+    <button data-tab="setup">Setup</button>
+  </nav>
+</header>
+<main>
+  <section id="run" class="on">
+    <div class="row">
+      <button class="primary" id="start">Start</button>
+      <button class="secondary" id="stop" disabled>Stop</button>
+      <span class="pill" id="state">idle</span>
+      <span class="muted" id="summary"></span>
+    </div>
+    <div class="log" id="log">No session running.</div>
+    <table><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Decision</th><th>Reason</th></tr></thead>
+    <tbody id="feed"></tbody></table>
+  </section>
+
+  <section id="calib">
+    <p class="muted">Score distribution of everything that reached scoring. Use it to pick the like threshold.</p>
+    <div class="row"><span class="pill" id="rate"></span></div>
+    <div class="bars" id="bars"></div><div class="axis" id="axis"></div>
+  </section>
+
+  <section id="settings">
+    <p class="muted">Stop the session before saving. Filters write to <code>config/rubric.yaml</code>; the threshold to <code>config/scoring.yaml</code>. Scoring weights are not editable here.</p>
+    <div class="grid" id="fields"></div>
+    <button class="primary" id="save">Save</button> <span class="msg" id="smsg"></span>
+  </section>
+
+  <section id="setup">
+    <ul class="checks" id="checks"></ul>
+    <p class="muted">API keys are read from <code>.env</code> in the project folder. To log into Tinder the first time, run <code>./run.sh swipe</code> once in Terminal; the session is then remembered.</p>
+  </section>
+</main>
+<script>
+const TOKEN = "__TOKEN__";
+const $ = (id) => document.getElementById(id);
+const FIELDS = [
+  ["age_min","Min age"],["age_max","Max age"],["distance_km_max","Max distance (km)"],
+  ["height_max_cm","Max height (cm)"],["auto_like","Like threshold (0-100)"],
+  ["max_likes","Max likes / session (1-100)"],["max_profiles","Max profiles / session (10-500)"],
+  ["quiet_start","Quiet hours start"],["quiet_end","Quiet hours end"]];
+
+async function api(path, body) {
+  const opt = body === undefined ? {} : {method:"POST", headers:{"X-App-Token":TOKEN,"Content-Type":"application/json"}, body:JSON.stringify(body)};
+  const r = await fetch(path, opt);
+  return {ok:r.ok, data: await r.json().catch(() => ({}))};
+}
+function cell(tr, text, cls) { const td = document.createElement("td"); td.textContent = text; if (cls) td.className = cls; tr.appendChild(td); }
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button, section").forEach(e => e.classList.remove("on"));
+  b.classList.add("on"); $(b.dataset.tab).classList.add("on");
+  if (b.dataset.tab === "calib") loadStats();
+  if (b.dataset.tab === "settings") loadSettings();
+  if (b.dataset.tab === "setup") loadSetup();
+});
+
+async function refresh() {
+  const s = (await api("/api/status")).data;
+  $("state").textContent = s.state;
+  $("start").disabled = s.running; $("stop").disabled = !s.running;
+  $("log").textContent = s.messages.length ? s.messages.join("\n") : "No session running.";
+  $("log").scrollTop = 1e9;
+  const d = s.last_summary;
+  $("summary").textContent = d && !s.running ? `Last: ${d.reviewed} reviewed, ${d.likes} likes. Stopped: ${d.stopped ?? "finished"}` : "";
+  const feed = (await api("/api/feed?limit=40")).data;
+  const body = $("feed"); body.textContent = "";
+  feed.forEach((p, i) => { const tr = document.createElement("tr");
+    cell(tr, feed.length - i); cell(tr, `${p.name}, ${p.age ?? "?"}`);
+    cell(tr, p.score ?? "-"); cell(tr, p.decision, p.decision); cell(tr, p.why || "");
+    body.appendChild(tr); });
+}
+$("start").onclick = async () => { $("start").disabled = true; await api("/api/start", {}); refresh(); };
+$("stop").onclick = async () => { await api("/api/stop", {}); refresh(); };
+
+async function loadStats() {
+  const s = (await api("/api/stats")).data;
+  $("rate").textContent = s.total ? `${s.likes} of ${s.total} liked (${Math.round(s.like_rate*100)}%)` : "No data yet";
+  const max = Math.max(1, ...s.histogram.map(b => b.count));
+  $("bars").textContent = ""; $("axis").textContent = "";
+  s.histogram.forEach(b => {
+    const bar = document.createElement("div"); bar.className = "bar";
+    bar.style.height = (b.count / max * 100) + "%";
+    const n = document.createElement("span"); n.textContent = b.count; bar.appendChild(n);
+    $("bars").appendChild(bar);
+    const a = document.createElement("div"); a.textContent = b.from; $("axis").appendChild(a);
+  });
+}
+async function loadSettings() {
+  const s = (await api("/api/settings")).data; $("fields").textContent = "";
+  FIELDS.forEach(([k, label]) => { const l = document.createElement("label"); l.textContent = label;
+    const i = document.createElement("input"); i.type = "number"; i.id = "f_" + k; i.value = s[k]; l.appendChild(i); $("fields").appendChild(l); });
+}
+$("save").onclick = async () => {
+  const body = {}; FIELDS.forEach(([k]) => body[k] = $("f_" + k).value);
+  const r = await api("/api/settings", body);
+  $("smsg").style.color = r.ok ? "var(--ok)" : "var(--bad)";
+  $("smsg").textContent = r.ok ? "Saved." : (r.data.error || "Could not save");
+};
+async function loadSetup() {
+  const s = (await api("/api/setup")).data; $("checks").textContent = "";
+  [["Anthropic API key", s.anthropic_key], ["Telegram (optional)", s.telegram],
+   ["Tinder session saved", s.tinder_session], [".env file present", s.env_file]].forEach(([t, ok]) => {
+    const li = document.createElement("li"); li.textContent = (ok ? "OK  " : "--  ") + t; $("checks").appendChild(li); });
+}
+refresh(); setInterval(refresh, 2500);
+</script>
+</body>
+</html>

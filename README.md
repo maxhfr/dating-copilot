@@ -56,10 +56,12 @@ Then verify everything before the first run:
 python check_setup.py
 ```
 
-Parser unit tests (offline, no API calls, no browser):
+Unit tests (offline, no API calls, no browser):
 
 ```bash
-python test_parsers.py
+python test_parsers.py     # page-text parsers, platform registry
+python test_session.py     # swipe loop, run log, stop/start (fake platform)
+python test_app.py         # settings and the local web app
 ```
 
 ## Running
@@ -84,6 +86,29 @@ sharing or committing.
 First run opens a real Chromium window. Log into Tinder by hand — the
 session persists in `~/.dating-copilot/` after that. The bot never sees
 your password.
+
+## Control app
+
+```bash
+pip install -r requirements.txt   # adds Flask and pywebview
+./run.sh app
+```
+
+Opens a window with four tabs: **Run** (Start/Stop, live feed of every
+profile with score and reason), **Calibration** (score histogram and like
+rate, for choosing `auto_like`), **Settings** (age, distance, height,
+threshold, session limits, quiet hours) and **Setup** (what is configured).
+
+- Every profile reviewed is logged to `~/.dating-copilot/runlog.db`
+  (name, age, score, reason; no photos or bios), including CLI runs.
+- Settings edit `config/rubric.yaml` and `config/scoring.yaml` in place, so
+  comments survive. Scoring weights are not editable in the app, and the
+  session limits are capped (100 likes, 500 profiles) on purpose.
+- A manual Start skips the random "skip this run" roll but still respects
+  quiet hours.
+- The server listens on 127.0.0.1 only; every action needs a per-launch token.
+- Log into Tinder once with `./run.sh swipe`; the session is remembered.
+- Without `pywebview` the app opens in your browser instead.
 
 ## Tuning
 

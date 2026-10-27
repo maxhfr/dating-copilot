@@ -11,8 +11,9 @@ useless: you think it's working when it isn't.
 import os
 import requests
 
-TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+# Telegram is optional: without both values every send is a silent no-op.
+TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 API = f"https://api.telegram.org/bot{TOKEN}"
 
 
@@ -26,6 +27,8 @@ def _md(text: str) -> str:
 
 def _post(method: str, payload: dict):
     """Send, and say so loudly if Telegram refuses."""
+    if not TOKEN or not CHAT_ID:
+        return {"ok": False}
     try:
         r = requests.post(f"{API}/{method}", json=payload, timeout=20)
         data = r.json()
