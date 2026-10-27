@@ -95,14 +95,22 @@ class Tinder(Platform):
         await self.ctx.close()
         await self._pw.stop()
 
-    async def ensure_logged_in(self):
+    async def ensure_logged_in(self, wait_for_login=None):
         await self.page.goto("https://tinder.com/app/recs",
                              wait_until="domcontentloaded")
         await asyncio.sleep(3)
         if "/app/" not in self.page.url:
+            if wait_for_login is not None:
+                # Driven by the app: it polls is_logged_in() instead of
+                # waiting for Enter in a terminal.
+                await wait_for_login(self)
+                return
             print("\n>>> Not logged in. Log in manually in the browser window.")
             print(">>> Press Enter here once you're on the swipe screen.\n")
             input()
+
+    async def is_logged_in(self) -> bool:
+        return "/app/" in self.page.url
 
     async def check_blocked(self, expect: str = "recs") -> str | None:
         """Detect a CAPTCHA, rate-limit wall or ban screen.

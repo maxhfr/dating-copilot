@@ -44,6 +44,12 @@ class FakeController:
         was, self.running = self.running, False
         return was
 
+    def start_login(self):
+        if self.running:
+            return False
+        self.running = True
+        return True
+
 
 class SettingsTests(unittest.TestCase):
     def setUp(self):
@@ -143,6 +149,11 @@ class AppTests(unittest.TestCase):
         self.assertEqual(self.post("/api/start").status_code, 409)
         self.assertEqual(self.post("/api/stop").status_code, 200)
         self.assertFalse(self.ctl.running)
+
+    def test_login_endpoint(self):
+        self.assertEqual(self.post("/api/login", token=False).status_code, 403)
+        self.assertEqual(self.post("/api/login").status_code, 200)
+        self.assertEqual(self.post("/api/login").status_code, 409)
 
     def test_settings_locked_while_running(self):
         self.ctl.running = True

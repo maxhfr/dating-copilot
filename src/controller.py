@@ -58,14 +58,37 @@ class SessionController:
                 self._loop.call_soon_threadsafe(self._task.cancel)
             return True
 
-    def _run(self, **run_kwargs):
+    def start_login(self) -> bool:
+        """Open the browser so the user can log in; False if busy."""
+        with self._lock:
+            if self.is_running():
+                return False
+            self._stop.clear()
+            self.messages.clear()
+            self.state = "running"
+            self._thread = threading.Thread(
+                target=self._run, kwargs={"login": True}, daemon=True)
+            self._thread.start()
+            return True
+
+    def _run(self, login: bool = False, **run_kwargs):
         loop = asyncio.new_event_loop()
         self._loop = loop
         try:
-            self._task = loop.create_task(session_main.run_session(
-                on_status=self.messages.append, stop_event=self._stop,
-                manual=True, **run_kwargs))
-            self.last_summary = loop.run_until_complete(self._task)
+            if login:
+                coro = session_main.login_only(
+                    on_status=self.messages.append, stop_event=self._stop)
+            else:
+                run_kwargs.setdefault("manual", True)
+                coro = session_main.run_session(
+                    on_status=self.messages.append, stop_event=self._stop,
+                    wait_for_login=session_main.poll_login(
+                        self._stop, self.messages.append),
+                    **run_kwargs)
+            self._task = loop.create_task(coro)
+            result = loop.run_until_complete(self._task)
+            if not login:
+                self.last_summary = result
             self.state = "idle"
         except asyncio.CancelledError:
             self.state = "idle"

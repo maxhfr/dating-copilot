@@ -45,7 +45,7 @@ async def run_session(platform: str = "tinder", on_profile=None, on_status=None,
                       stop_event=None, manual: bool = False,
                       max_likes: int | None = None,
                       max_profiles: int | None = None,
-                      quiet_hours=None) -> dict:
+                      quiet_hours=None, wait_for_login=None) -> dict:
     """Run one swipe session and return a summary dict.
 
     on_profile(dict)  called after each profile is decided
@@ -87,7 +87,7 @@ async def run_session(platform: str = "tinder", on_profile=None, on_status=None,
 
     try:
         async with get_platform(platform)(headless=False) as t:
-            await t.ensure_logged_in()
+            await t.ensure_logged_in(wait_for_login=wait_for_login)
 
             while likes < like_cap and reviewed < profile_cap:
                 if stop_event is not None and stop_event.is_set():
@@ -193,6 +193,44 @@ async def run_session(platform: str = "tinder", on_profile=None, on_status=None,
     summary.update(reviewed=reviewed, likes=likes,
                    vision_calls=vision_calls, stopped=stopped)
     return summary
+
+
+def poll_login(stop_event=None, on_status=None, timeout: int = 600):
+    """A wait_for_login callback that polls instead of waiting for Enter."""
+    async def wait(t):
+        if on_status:
+            on_status("Not logged in: log into Tinder in the browser window "
+                      "(waiting up to %d min)..." % (timeout // 60))
+        waited = 0
+        while waited < timeout:
+            if stop_event is not None and stop_event.is_set():
+                raise asyncio.CancelledError
+            if await t.is_logged_in():
+                await asyncio.sleep(3)          # let the session cookies settle
+                return
+            await asyncio.sleep(2)
+            waited += 2
+        raise TimeoutError("login timed out")
+    return wait
+
+
+async def login_only(platform: str = "tinder", on_status=None,
+                     stop_event=None, timeout: int = 600) -> dict:
+    """Open the browser, wait for a manual login, then close it. The
+    session is saved in the browser profile for later runs."""
+    say = on_status or print
+    try:
+        async with get_platform(platform)(headless=False) as t:
+            await t.ensure_logged_in(
+                wait_for_login=poll_login(stop_event, on_status, timeout))
+            say("Logged in. The session is saved.")
+        return {"logged_in": True}
+    except asyncio.CancelledError:
+        say("Login cancelled.")
+        return {"logged_in": False}
+    except Exception as e:
+        say(f"Login failed: {type(e).__name__}: {e}")
+        return {"logged_in": False}
 
 
 if __name__ == "__main__":

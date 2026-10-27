@@ -76,7 +76,10 @@
 
   <section id="setup">
     <ul class="checks" id="checks"></ul>
-    <p class="muted">API keys are read from <code>.env</code> in the project folder. To log into Tinder the first time, run <code>./run.sh swipe</code> once in Terminal; the session is then remembered.</p>
+    <div class="row"><button class="secondary" id="login">Log in to Tinder</button>
+      <span class="muted">Opens the browser window. Log in by hand; it closes itself and remembers you.</span></div>
+    <div class="log" id="loginlog" style="display:none"></div>
+    <p class="muted">API keys are read from <code>.env</code> in the project folder.</p>
   </section>
 </main>
 <script>
@@ -145,7 +148,14 @@ $("save").onclick = async () => {
   $("smsg").style.color = r.ok ? "var(--ok)" : "var(--bad)";
   $("smsg").textContent = r.ok ? "Saved." : (r.data.error || "Could not save");
 };
+$("login").onclick = async () => {
+  const r = await api("/api/login", {});
+  $("loginlog").style.display = "block";
+  $("loginlog").textContent = r.ok ? "Browser opening..." : "A session or login is already running.";
+};
 async function loadSetup() {
+  const st = (await api("/api/status")).data;
+  if (st.running && st.messages.length) { $("loginlog").style.display = "block"; $("loginlog").textContent = st.messages.join("\n"); }
   const s = (await api("/api/setup")).data; $("checks").textContent = "";
   [["Anthropic API key", s.anthropic_key], ["Telegram (optional)", s.telegram],
    ["Tinder session saved", s.tinder_session], [".env file present", s.env_file]].forEach(([t, ok]) => {

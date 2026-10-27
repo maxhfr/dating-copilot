@@ -19,8 +19,17 @@ class Platform(ABC):
     async def __aexit__(self, *a): ...
 
     @abstractmethod
-    async def ensure_logged_in(self):
-        """Open the app; if not logged in, wait for the user to log in by hand."""
+    async def ensure_logged_in(self, wait_for_login=None):
+        """Open the app; if not logged in, wait for the user to log in by hand.
+
+        With no `wait_for_login` the user is prompted in the terminal.
+        Otherwise `await wait_for_login(self)` is called instead, which is how
+        the app waits without a terminal.
+        """
+
+    @abstractmethod
+    async def is_logged_in(self) -> bool:
+        """True once the app's logged-in screen is showing."""
 
     @abstractmethod
     async def check_blocked(self, expect: str = "recs") -> str | None:

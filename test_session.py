@@ -29,6 +29,8 @@ class FakePlatform(Platform):
     """Scripted deck. `profiles` is a list of dicts (or None = unreadable)."""
     script = []
     swipes = []
+    logged_in = True
+    delay = 0
 
     def __init__(self, headless=False):
         self.queue = list(FakePlatform.script)
@@ -39,8 +41,12 @@ class FakePlatform(Platform):
     async def __aexit__(self, *a):
         return False
 
-    async def ensure_logged_in(self):
-        pass
+    async def ensure_logged_in(self, wait_for_login=None):
+        if wait_for_login is not None and not self.logged_in:
+            await wait_for_login(self)
+
+    async def is_logged_in(self):
+        return self.logged_in
 
     async def check_blocked(self, expect="recs"):
         return None
@@ -49,7 +55,7 @@ class FakePlatform(Platform):
         return None
 
     async def read_current_profile(self):
-        await asyncio.sleep(0)
+        await asyncio.sleep(FakePlatform.delay)
         return self.queue.pop(0) if self.queue else None
 
     async def swipe(self, like):
@@ -158,9 +164,46 @@ class SessionTests(unittest.TestCase):
         self.assertLessEqual(s["likes"], 4)
 
 
+class LoginTests(unittest.TestCase):
+    def setUp(self):
+        self._gp = main.get_platform
+        main.get_platform = lambda name: FakePlatform
+
+    def tearDown(self):
+        main.get_platform = self._gp
+        FakePlatform.logged_in = True
+
+    def test_already_logged_in(self):
+        status = []
+        r = asyncio.run(main.login_only(on_status=status.append, timeout=5))
+        self.assertTrue(r["logged_in"])
+        self.assertTrue(any("Logged in" in m for m in status))
+
+    def test_waits_until_login_completes(self):
+        FakePlatform.logged_in = False
+        threading.Timer(0.5, lambda: setattr(FakePlatform, "logged_in", True)).start()
+        r = asyncio.run(main.login_only(timeout=10))
+        self.assertTrue(r["logged_in"])
+
+    def test_cancel_via_stop_event(self):
+        FakePlatform.logged_in = False
+        ev = threading.Event()
+        threading.Timer(0.5, ev.set).start()
+        r = asyncio.run(main.login_only(stop_event=ev, timeout=30))
+        self.assertFalse(r["logged_in"])
+
+    def test_timeout_reports_failure(self):
+        FakePlatform.logged_in = False
+        status = []
+        r = asyncio.run(main.login_only(on_status=status.append, timeout=2))
+        self.assertFalse(r["logged_in"])
+        self.assertTrue(any("timed out" in m for m in status))
+
+
 class ControllerTests(unittest.TestCase):
     def test_start_stop_roundtrip(self):
         FakePlatform.script = [prof(i, "Lo") for i in range(10000)]
+        FakePlatform.delay = 0.05      # slow enough to still be running below
         orig = (main.get_platform, main.judge, main.HOLD_ON_STOP,
                 main.session_digest, main.alert)
         main.get_platform = lambda name: FakePlatform
@@ -187,6 +230,7 @@ class ControllerTests(unittest.TestCase):
             self.assertEqual(c.last_summary["stopped"], "stopped by you")
         finally:
             ctl.importlib.reload = real_reload
+            FakePlatform.delay = 0
             (main.get_platform, main.judge, main.HOLD_ON_STOP,
              main.session_digest, main.alert) = orig
 

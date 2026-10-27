@@ -50,6 +50,11 @@ def create_app(controller: SessionController | None = None) -> Flask:
     def stop():
         return jsonify({"stopping": ctl.stop()})
 
+    @app.post("/api/login")
+    def login():
+        ok = ctl.start_login()
+        return jsonify({"started": ok}), (200 if ok else 409)
+
     @app.get("/api/feed")
     def feed():
         return jsonify(runlog.recent(min(int(request.args.get("limit", 50)), 200)))
