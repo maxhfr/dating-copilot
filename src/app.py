@@ -20,7 +20,8 @@ ROOT = Path(__file__).resolve().parent.parent
 PAGE = (Path(__file__).parent / "ui.html")
 
 
-def create_app(controller: SessionController | None = None) -> Flask:
+def create_app(controller: SessionController | None = None,
+               schedule=None) -> Flask:
     app = Flask(__name__)
     ctl = controller or SessionController()
     token = secrets.token_urlsafe(24)
@@ -50,6 +51,24 @@ def create_app(controller: SessionController | None = None) -> Flask:
     @app.post("/api/stop")
     def stop():
         return jsonify({"stopping": ctl.stop()})
+
+    @app.get("/api/schedule")
+    def get_schedule():
+        if schedule is None:
+            return jsonify({**settings.read_schedule(), "next_runs": [],
+                            "last_fire": None, "limits": {}})
+        return jsonify(schedule.status())
+
+    @app.post("/api/schedule")
+    def post_schedule():
+        try:
+            clean = settings.write_schedule(request.get_json(force=True) or {})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        if schedule is not None:
+            schedule.apply(clean)
+            return jsonify(schedule.status())
+        return jsonify(clean)
 
     @app.post("/api/login")
     def login():

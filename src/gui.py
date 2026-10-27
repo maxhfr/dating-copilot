@@ -41,9 +41,14 @@ def main():
               "sessions will fail until it is.")
         os.environ["ANTHROPIC_API_KEY"] = "missing"   # judge reads it at import
     from app import create_app
+    from controller import SessionController
+    from scheduler import Schedule
 
     port = free_port()
-    app = create_app()
+    ctl = SessionController()
+    schedule = Schedule(ctl)
+    schedule.start()
+    app = create_app(ctl, schedule)
     threading.Thread(target=lambda: app.run(host="127.0.0.1", port=port,
                                             debug=False, use_reloader=False),
                      daemon=True).start()
@@ -60,6 +65,8 @@ def main():
             threading.Event().wait()
         except KeyboardInterrupt:
             pass
+    finally:
+        schedule.shutdown()
 
 
 if __name__ == "__main__":

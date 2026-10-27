@@ -108,9 +108,78 @@ def write(new: dict) -> dict:
 
     home = runlog.home()
     home.mkdir(parents=True, exist_ok=True)
-    (home / "settings.json").write_text(json.dumps(
-        {k: v[k] for k in DEFAULTS}, indent=2))
+    data = {k: v[k] for k in DEFAULTS}
+    data["schedule"] = read_schedule()      # keep the schedule across saves
+    (home / "settings.json").write_text(json.dumps(data, indent=2))
     return read()
+
+
+# --- Schedule -------------------------------------------------------------
+# Hard limits that protect the account: few sessions, well spaced.
+MAX_SESSIONS_PER_DAY = 4
+MIN_GAP_MINUTES = 180
+MAX_JITTER_MINUTES = 30
+
+SCHEDULE_DEFAULT = {"enabled": False, "times": [], "jitter_minutes": 20}
+
+
+def _in_quiet(minute_of_day: int, start: int, end: int) -> bool:
+    h = minute_of_day // 60
+    return (start <= h < end) if start <= end else (h >= start or h < end)
+
+
+def validate_schedule(cfg: dict) -> dict:
+    """Return a cleaned schedule or raise ValueError with a readable message."""
+    times = cfg.get("times", [])
+    if not isinstance(times, list):
+        raise ValueError("times must be a list like [\"09:17\", \"18:40\"]")
+    mins = set()
+    for t in times:
+        m = re.fullmatch(r"([01]?\d|2[0-3]):([0-5]\d)", str(t).strip())
+        if not m:
+            raise ValueError(f"{t!r} is not a time (use 24h HH:MM)")
+        mins.add(int(m.group(1)) * 60 + int(m.group(2)))
+    mins = sorted(mins)
+    if len(mins) > MAX_SESSIONS_PER_DAY:
+        raise ValueError(f"at most {MAX_SESSIONS_PER_DAY} sessions per day")
+    for a, b in zip(mins, mins[1:] + [mins[0] + 1440] if mins else []):
+        if len(mins) > 1 and b - a < MIN_GAP_MINUTES:
+            raise ValueError(f"sessions must be at least {MIN_GAP_MINUTES // 60} hours apart")
+    cur = read()
+    for m in mins:
+        if _in_quiet(m, cur["quiet_start"], cur["quiet_end"]):
+            raise ValueError(f"{m // 60:02d}:{m % 60:02d} falls inside quiet hours")
+    jitter = _int(cfg, "jitter_minutes", 0, MAX_JITTER_MINUTES) \
+        if "jitter_minutes" in cfg else SCHEDULE_DEFAULT["jitter_minutes"]
+    return {"enabled": bool(cfg.get("enabled", False)),
+            "times": [f"{m // 60:02d}:{m % 60:02d}" for m in mins],
+            "jitter_minutes": jitter}
+
+
+def read_schedule() -> dict:
+    f = runlog.home() / "settings.json"
+    sched = dict(SCHEDULE_DEFAULT)
+    if f.exists():
+        try:
+            sched.update(json.loads(f.read_text()).get("schedule", {}))
+        except Exception:
+            pass
+    return sched
+
+
+def write_schedule(cfg: dict) -> dict:
+    clean = validate_schedule({**read_schedule(), **cfg})
+    f = runlog.home() / "settings.json"
+    data = {}
+    if f.exists():
+        try:
+            data = json.loads(f.read_text())
+        except Exception:
+            data = {}
+    data["schedule"] = clean
+    runlog.home().mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(data, indent=2))
+    return clean
 
 
 def run_kwargs() -> dict:

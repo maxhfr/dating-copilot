@@ -33,7 +33,7 @@ def check_files():
             ok.append(rel)
 
     allowed_root = {"check_setup.py", "test_parsers.py", "test_session.py",
-                    "test_app.py", "match_probe.py",
+                    "test_app.py", "test_schedule.py", "match_probe.py",
                     "thread_probe.py", "dom_probe.py"}
     stray = [f.name for f in ROOT.glob("*.py") if f.name not in allowed_root]
     if stray:

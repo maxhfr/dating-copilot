@@ -61,7 +61,8 @@ Unit tests (offline, no API calls, no browser):
 ```bash
 python test_parsers.py     # page-text parsers, platform registry
 python test_session.py     # swipe loop, run log, stop/start (fake platform)
-python test_app.py         # settings and the local web app
+python test_app.py         # settings, keys and the local web app
+python test_schedule.py    # schedule limits, scheduler, login agent
 ```
 
 ## Running
@@ -107,7 +108,14 @@ threshold, session limits, quiet hours) and **Setup** (what is configured).
 - A manual Start skips the random "skip this run" roll but still respects
   quiet hours.
 - The server listens on 127.0.0.1 only; every action needs a per-launch token.
-- Log into Tinder once with `./run.sh swipe`; the session is remembered.
+- **Setup tab:** "Log in to Tinder" opens the browser; log in by hand and it
+  closes itself and remembers you. API keys are saved to the macOS Keychain
+  (write-only: they are never shown again). Precedence is shell environment,
+  then keychain, then `.env`.
+- **Schedule tab:** up to 4 sessions a day, at least 3 hours apart, none in
+  quiet hours, with jitter. Scheduled runs keep the random skip. The app must
+  be open for them to run; to have macOS open it at login:
+  `python packaging/launch_agent.py install` (and `uninstall`).
 - Without `pywebview` the app opens in your browser instead.
 
 ## Tuning

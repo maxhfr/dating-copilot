@@ -45,6 +45,7 @@
   <nav>
     <button data-tab="run" class="on">Run</button>
     <button data-tab="calib">Calibration</button>
+    <button data-tab="schedule">Schedule</button>
     <button data-tab="settings">Settings</button>
     <button data-tab="setup">Setup</button>
   </nav>
@@ -66,6 +67,17 @@
     <p class="muted">Score distribution of everything that reached scoring. Use it to pick the like threshold.</p>
     <div class="row"><span class="pill" id="rate"></span></div>
     <div class="bars" id="bars"></div><div class="axis" id="axis"></div>
+  </section>
+
+  <section id="schedule">
+    <p class="muted">Runs start by themselves at these times while this app is open. Scheduled runs keep the random skip and quiet hours. Limits protect the account: at most <span id="lim_n">4</span> a day, <span id="lim_g">3</span>+ hours apart.</p>
+    <div class="grid">
+      <label><span>Enabled</span><input type="checkbox" id="sch_on" style="width:auto"></label>
+      <label>Times (24h, comma separated)<input id="sch_times" style="width:260px" placeholder="09:17, 13:42, 18:05"></label>
+      <label>Jitter (minutes, 0-30)<input id="sch_jit" type="number"></label>
+    </div>
+    <button class="primary" id="sch_save">Save schedule</button> <span class="msg" id="sch_msg"></span>
+    <p class="muted" id="sch_next"></p>
   </section>
 
   <section id="settings">
@@ -106,6 +118,7 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   b.classList.add("on"); $(b.dataset.tab).classList.add("on");
   if (b.dataset.tab === "calib") loadStats();
   if (b.dataset.tab === "settings") loadSettings();
+  if (b.dataset.tab === "schedule") loadSchedule();
   if (b.dataset.tab === "setup") loadSetup();
 });
 
@@ -177,6 +190,21 @@ function buildSecrets() {
     row.append(i, save, clear); l.appendChild(row); $("secrets").appendChild(l);
   });
 }
+async function loadSchedule() {
+  const s = (await api("/api/schedule")).data;
+  $("sch_on").checked = !!s.enabled; $("sch_times").value = (s.times || []).join(", ");
+  $("sch_jit").value = s.jitter_minutes;
+  if (s.limits && s.limits.max_sessions_per_day) { $("lim_n").textContent = s.limits.max_sessions_per_day; $("lim_g").textContent = s.limits.min_gap_hours; }
+  $("sch_next").textContent = (s.next_runs && s.next_runs.length)
+    ? "Next: " + s.next_runs.map(t => new Date(t).toLocaleString()).join(" · ") : (s.enabled ? "" : "Scheduling is off.");
+}
+$("sch_save").onclick = async () => {
+  const times = $("sch_times").value.split(",").map(t => t.trim()).filter(Boolean);
+  const r = await api("/api/schedule", {enabled: $("sch_on").checked, times, jitter_minutes: Number($("sch_jit").value)});
+  $("sch_msg").style.color = r.ok ? "var(--ok)" : "var(--bad)";
+  $("sch_msg").textContent = r.ok ? "Saved." : (r.data.error || "Could not save");
+  if (r.ok) loadSchedule();
+};
 async function loadSetup() {
   if (!$("secrets").children.length) buildSecrets();
   const st = (await api("/api/status")).data;
