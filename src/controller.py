@@ -12,6 +12,7 @@ import traceback
 from collections import deque
 
 import judge
+import keep_awake
 import notifier
 import runlog
 import main as session_main
@@ -35,6 +36,7 @@ class SessionController:
         self.state = "idle"            # idle | running | stopping | error
         self.last_summary = None
         self.messages = _LoggedMessages(maxlen=200)
+        self.awake = keep_awake.KeepAwake()   # held only while a session runs
 
     def is_running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
@@ -87,6 +89,10 @@ class SessionController:
         loop = asyncio.new_event_loop()
         self._loop = loop
         try:
+            if not login:
+                # Awake only while actually swiping, so the Mac sleeps normally
+                # the rest of the time. Released in the finally block below.
+                self.awake.set(True)
             if login:
                 coro = session_main.login_only(
                     on_status=self.messages.append, stop_event=self._stop)
@@ -109,5 +115,6 @@ class SessionController:
             runlog.log_line(traceback.format_exc())
             self.state = "error"
         finally:
+            self.awake.set(False)
             loop.close()
             self._loop = self._task = None

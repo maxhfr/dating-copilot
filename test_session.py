@@ -222,6 +222,72 @@ class LoginTests(unittest.TestCase):
         self.assertTrue(any("timed out" in m for m in status))
 
 
+class RecordingAwake:
+    def __init__(self):
+        self.calls = []
+        self.active = False
+
+    def set(self, on):
+        self.calls.append(on)
+        self.active = on
+        return on
+
+
+class AwakeTests(unittest.TestCase):
+    def _controller(self):
+        c = SessionController()
+        c.awake = RecordingAwake()
+        return c
+
+    def test_awake_only_while_a_session_runs(self):
+        FakePlatform.script = [prof(i, "Lo") for i in range(10000)]
+        FakePlatform.delay = 0.05
+        orig = (main.get_platform, main.judge, main.HOLD_ON_STOP, main.notifier)
+        main.get_platform = lambda name: FakePlatform
+        main.notifier = types.SimpleNamespace(
+            session_digest=lambda **kw: None, alert=lambda text: None)
+        main.HOLD_ON_STOP = False
+        import controller as ctl
+        real_reload = ctl.importlib.reload
+        ctl.importlib.reload = lambda m: m
+        main.judge = FakeJudge
+        try:
+            c = self._controller()
+            self.assertEqual(c.awake.calls, [])          # idle: not held
+            c.start(max_likes=45, quiet_hours=range(0))
+            time.sleep(0.3)
+            self.assertTrue(c.awake.active)              # held while swiping
+            c.stop()
+            for _ in range(50):
+                if not c.is_running():
+                    break
+                time.sleep(0.1)
+            self.assertFalse(c.awake.active)             # released after
+            self.assertEqual(c.awake.calls, [True, False])
+        finally:
+            ctl.importlib.reload = real_reload
+            FakePlatform.delay = 0
+            (main.get_platform, main.judge, main.HOLD_ON_STOP, main.notifier) = orig
+
+    def test_login_does_not_hold_the_mac_awake(self):
+        c = self._controller()
+        orig = main.login_only
+
+        async def quick_login(**kw):
+            return {"logged_in": True}
+        main.login_only = quick_login
+        try:
+            self.assertTrue(c.start_login())
+            for _ in range(50):
+                if not c.is_running():
+                    break
+                time.sleep(0.05)
+        finally:
+            main.login_only = orig
+        self.assertFalse(c.awake.active)
+        self.assertNotIn(True, c.awake.calls)
+
+
 class ControllerTests(unittest.TestCase):
     def test_start_stop_roundtrip(self):
         FakePlatform.script = [prof(i, "Lo") for i in range(10000)]

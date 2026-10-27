@@ -1,4 +1,4 @@
-"""Stop the Mac idling to sleep while scheduled sessions are enabled.
+"""Stop the Mac idling to sleep while a session is running.
 
 Uses macOS `caffeinate -i -w <our pid>`: it prevents idle sleep (the screen
 may still turn off) and exits by itself when the app quits. A closed laptop

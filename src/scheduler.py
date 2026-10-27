@@ -8,7 +8,8 @@ settings.validate_schedule.
 
 Catch-up: a time that passes while the Mac sleeps is run once, late, when it
 wakes (within CATCH_UP_SECONDS). A hard floor between sessions stops catch-ups
-from stacking.
+from stacking. The Mac is kept awake only while a session runs (see
+controller.py), so it sleeps normally otherwise.
 """
 
 import threading
@@ -17,7 +18,6 @@ import time
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-import keep_awake
 import runlog
 import settings
 
@@ -32,7 +32,6 @@ class Schedule:
         self.controller = controller
         self.sched = BackgroundScheduler(timezone=TZ)
         self.last_fire = None
-        self.awake = keep_awake.KeepAwake()
         self._beat_stop = threading.Event()
 
     def start(self):
@@ -52,14 +51,12 @@ class Schedule:
 
     def shutdown(self):
         self._beat_stop.set()
-        self.awake.set(False)
         if self.sched.running:
             self.sched.shutdown(wait=False)
 
     def apply(self, cfg: dict):
         """Replace all jobs with the ones in `cfg` (already validated)."""
         self.sched.remove_all_jobs()
-        self.awake.set(bool(cfg.get("enabled")))   # keep the Mac awake only while scheduling
         if not cfg.get("enabled"):
             return
         for t in cfg["times"]:
@@ -89,7 +86,8 @@ class Schedule:
         nxt = sorted(j.next_run_time.isoformat() for j in self.sched.get_jobs()
                      if j.next_run_time)
         return {**cfg, "next_runs": nxt, "last_fire": self.last_fire,
-                "keeping_awake": self.awake.active,
+                "keeping_awake": bool(getattr(getattr(self.controller, "awake", None),
+                                              "active", False)),
                 "limits": {"max_sessions_per_day": settings.MAX_SESSIONS_PER_DAY,
                            "min_gap_hours": settings.MIN_GAP_MINUTES // 60,
                            "max_jitter_minutes": settings.MAX_JITTER_MINUTES}}

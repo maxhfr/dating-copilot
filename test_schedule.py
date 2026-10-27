@@ -215,16 +215,14 @@ class KeepAwakeTests(unittest.TestCase):
             proc.terminate.assert_called_once()
             self.assertFalse(k.active)
 
-    def test_apply_toggles_keep_awake(self):
+    def test_scheduling_alone_does_not_keep_the_mac_awake(self):
         ctl = FakeController()
         s = Schedule(ctl)
         s.sched.start(paused=True)
-        seen = []
-        s.awake.set = lambda v: seen.append(v) or False
         s.apply({"enabled": True, "times": ["09:17"], "jitter_minutes": 0})
-        s.apply({"enabled": False, "times": [], "jitter_minutes": 0})
+        self.assertFalse(s.status()["keeping_awake"])
         s.shutdown()
-        self.assertEqual(seen[:2], [True, False])
+        self.assertFalse(hasattr(s, "awake"))
 
 
 class RouteTests(Base):
