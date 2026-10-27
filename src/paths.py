@@ -31,3 +31,9 @@ def config_dir() -> Path:
         if not (dest / src.name).exists():
             shutil.copy(src, dest / src.name)
     return dest
+
+
+def icon_png() -> Path:
+    """The 1024px app icon (bundled under icon/ when frozen)."""
+    sub = Path("icon") if frozen() else Path("packaging") / "icon"
+    return bundle_root() / sub / "icon_1024.png"

@@ -25,7 +25,8 @@ hidden += ["judge", "main", "notifier", "runlog", "settings", "secrets_store",
            "platforms.capture", "tzlocal", "yaml"]
 
 datas += [(str(ROOT / "src" / "ui.html"), "."),
-          (str(ROOT / "config"), "config")]
+          (str(ROOT / "config"), "config"),
+          (str(ROOT / "packaging" / "icon" / "icon_1024.png"), "icon")]
 
 a = Analysis(
     [str(ROOT / "src" / "gui.py")],
@@ -40,6 +41,7 @@ coll = COLLECT(exe, a.binaries, a.datas, name="dating-copilot")
 
 if sys.platform == "darwin":
     app = BUNDLE(coll, name="Dating Copilot.app",
+                 icon=str(ROOT / "packaging" / "icon" / "icon.icns"),
                  bundle_identifier="com.dating-copilot.app",
                  info_plist={"NSHighResolutionCapable": True,
                              "CFBundleShortVersionString": "0.1.0"})

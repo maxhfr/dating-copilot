@@ -27,6 +27,21 @@ def load_env():
                 os.environ.setdefault(k.strip(), v.strip())
 
 
+def set_dock_icon():
+    """Show the app icon in the Dock when running from source on macOS.
+    (A packaged .app already carries it.) Best effort; never raises."""
+    if sys.platform != "darwin":
+        return
+    try:
+        from AppKit import NSApplication, NSImage
+        import paths
+        img = NSImage.alloc().initWithContentsOfFile_(str(paths.icon_png()))
+        if img is not None:
+            NSApplication.sharedApplication().setApplicationIconImage_(img)
+    except Exception:
+        pass
+
+
 def free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -72,7 +87,9 @@ def main():
     try:
         try:
             import webview
-            webview.create_window("Dating Copilot", url, width=980, height=720)
+            webview.create_window("Dating Copilot", url, width=1080, height=760,
+                                  min_size=(760, 520))
+            set_dock_icon()
             webview.start()
         except Exception as e:      # not installed, or no GUI toolkit
             print(f"No native window ({type(e).__name__}); opening {url} in "

@@ -36,6 +36,18 @@ class PathsTests(unittest.TestCase):
             self.assertEqual((d / "rubric.yaml").read_text(), "edited: true\n")
 
 
+class IconTests(unittest.TestCase):
+    def test_icon_assets_exist(self):
+        self.assertTrue(paths.icon_png().exists())
+        self.assertTrue((paths.bundle_root() / "packaging" / "icon" / "icon.icns").exists())
+        self.assertTrue((paths.bundle_root() / "packaging" / "icon" / "icon.svg").exists())
+
+    def test_icon_path_when_frozen(self):
+        with mock.patch.object(sys, "frozen", True, create=True), \
+                mock.patch.object(sys, "_MEIPASS", "/bundle", create=True):
+            self.assertEqual(paths.icon_png(), Path("/bundle/icon/icon_1024.png"))
+
+
 class BrowserTests(unittest.TestCase):
     def test_installed_detection(self):
         with tempfile.TemporaryDirectory() as d, \

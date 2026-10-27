@@ -129,6 +129,9 @@ threshold, session limits, quiet hours) and **Setup** (what is configured).
 
 ## Packaging a Mac app
 
+The app icon lives in `packaging/icon/` (`icon.svg` is the source; `icon_1024.png`
+and `icon.icns` are generated from it and committed).
+
 ```bash
 ./packaging/build_mac.sh
 ```
