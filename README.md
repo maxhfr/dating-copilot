@@ -142,6 +142,9 @@ app, choose **Open**, and confirm. If macOS still refuses:
 `xattr -dr com.apple.quarantine "dist/Dating Copilot.app"`.
 
 - Chromium is not bundled; the app downloads it on first launch (~190 MB).
+- If you open the app from Downloads (or a disk image), it offers to move
+  itself to Applications and reopens from there. "Don't Ask Again" is
+  remembered; set `DATING_COPILOT_NO_MOVE_PROMPT=1` to skip it.
 - Inside the app, the editable config is copied to `~/.dating-copilot/config/`
   on first launch, and `.env` can live in `~/.dating-copilot/.env`.
 - The spec is `packaging/dating-copilot.spec`. The build was verified on Linux

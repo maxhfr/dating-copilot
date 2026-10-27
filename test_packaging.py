@@ -98,6 +98,135 @@ class WindowsTests(unittest.TestCase):
         self.assertIn("src\\cli.py", text)
 
 
+class MacInstallTests(unittest.TestCase):
+    EXE = "/Users/x/Downloads/Dating Copilot.app/Contents/MacOS/dating-copilot"
+
+    def setUp(self):
+        import mac_install
+        self.m = mac_install
+        self.home = tempfile.TemporaryDirectory()
+        self._env = mock.patch.dict(os.environ, {"DATING_COPILOT_HOME": self.home.name})
+        self._env.start()
+        os.environ.pop("DATING_COPILOT_NO_MOVE_PROMPT", None)
+        self.patches = [
+            mock.patch.object(mac_install.sys, "platform", "darwin"),
+            mock.patch.object(mac_install.sys, "frozen", True, create=True),
+            mock.patch.object(mac_install.sys, "executable", self.EXE),
+        ]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+        self._env.stop()
+        self.home.cleanup()
+
+    def test_bundle_path_from_executable(self):
+        self.assertEqual(self.m.app_bundle_path(), Path("/Users/x/Downloads/Dating Copilot.app"))
+
+    def test_no_bundle_when_not_frozen_or_not_mac(self):
+        with mock.patch.object(self.m.sys, "frozen", False, create=True):
+            self.assertIsNone(self.m.app_bundle_path())
+        with mock.patch.object(self.m.sys, "platform", "win32"):
+            self.assertIsNone(self.m.app_bundle_path())
+
+    def test_in_applications(self):
+        self.assertTrue(self.m.in_applications(Path("/Applications/Dating Copilot.app")))
+        self.assertTrue(self.m.in_applications(Path.home() / "Applications" / "Dating Copilot.app"))
+        self.assertFalse(self.m.in_applications(Path("/Users/x/Downloads/Dating Copilot.app")))
+        self.assertFalse(self.m.in_applications(Path("/Volumes/Dating Copilot/Dating Copilot.app")))
+
+    def test_should_offer_rules(self):
+        dl = Path("/Users/x/Downloads/Dating Copilot.app")
+        self.assertTrue(self.m.should_offer(dl))
+        self.assertFalse(self.m.should_offer(None))
+        self.assertFalse(self.m.should_offer(Path("/Applications/Dating Copilot.app")))
+        with mock.patch.dict(os.environ, {"DATING_COPILOT_NO_MOVE_PROMPT": "1"}):
+            self.assertFalse(self.m.should_offer(dl))
+        (Path(self.home.name) / self.m.OPT_OUT_FILE).write_text("1")
+        self.assertFalse(self.m.should_offer(dl))
+
+    def _run(self, stdout="", code=0):
+        return mock.Mock(returncode=code, stdout=stdout, stderr="")
+
+    def test_dialog_parses_each_button_and_dismissal(self):
+        for label in (self.m.MOVE, self.m.LATER, self.m.NEVER):
+            with mock.patch.object(self.m.subprocess, "run",
+                                   return_value=self._run(f"button returned:{label}\n")):
+                self.assertEqual(self.m.ask_user(), label)
+        with mock.patch.object(self.m.subprocess, "run", return_value=self._run("", 1)):
+            self.assertIsNone(self.m.ask_user())
+
+    def test_move_runs_ditto_then_xattr_then_open_then_trash(self):
+        app = Path("/Users/x/Downloads/Dating Copilot.app")
+        calls = []
+        with mock.patch.object(self.m, "_exists", return_value=False), \
+                mock.patch.object(self.m.subprocess, "run",
+                                  side_effect=lambda cmd, **kw: calls.append(cmd[0]) or self._run()), \
+                mock.patch.object(self.m.subprocess, "Popen",
+                                  side_effect=lambda cmd, **kw: calls.append(cmd[0])), \
+                mock.patch.object(self.m, "_trash", side_effect=lambda a: calls.append("trash")):
+            self.assertTrue(self.m.move_and_relaunch(app))
+        self.assertEqual(calls, ["ditto", "xattr", "open", "trash"])
+
+    def test_translocated_and_disk_image_originals_are_not_trashed(self):
+        for original in ("/private/var/folders/x/AppTranslocation/ABC/d/Dating Copilot.app",
+                         "/Volumes/Dating Copilot/Dating Copilot.app"):
+            with mock.patch.object(self.m, "_exists", return_value=False), \
+                    mock.patch.object(self.m.subprocess, "run", return_value=self._run()), \
+                    mock.patch.object(self.m.subprocess, "Popen"), \
+                    mock.patch.object(self.m, "_trash") as trash:
+                self.assertTrue(self.m.move_and_relaunch(Path(original)))
+                trash.assert_not_called()
+
+    def test_existing_copy_replace_and_cancel(self):
+        app = Path("/Users/x/Downloads/Dating Copilot.app")
+        with mock.patch.object(self.m, "_exists", return_value=True), \
+                mock.patch.object(self.m, "_dialog", return_value="Replace"), \
+                mock.patch.object(self.m.shutil, "rmtree") as rm, \
+                mock.patch.object(self.m.subprocess, "run", return_value=self._run()), \
+                mock.patch.object(self.m.subprocess, "Popen"), \
+                mock.patch.object(self.m, "_trash"):
+            self.assertTrue(self.m.move_and_relaunch(app))
+            rm.assert_called_once()
+        with mock.patch.object(self.m, "_exists", return_value=True), \
+                mock.patch.object(self.m, "_dialog", return_value="Cancel"), \
+                mock.patch.object(self.m.shutil, "rmtree") as rm, \
+                mock.patch.object(self.m.subprocess, "run") as run:
+            self.assertFalse(self.m.move_and_relaunch(app))
+            rm.assert_not_called()
+            run.assert_not_called()
+
+    def test_failure_shows_error_and_keeps_running(self):
+        app = Path("/Users/x/Downloads/Dating Copilot.app")
+        shown = []
+        with mock.patch.object(self.m, "_exists", return_value=False), \
+                mock.patch.object(self.m.subprocess, "run",
+                                  side_effect=OSError("read-only")), \
+                mock.patch.object(self.m, "_dialog",
+                                  side_effect=lambda text, *a, **k: shown.append(text)), \
+                mock.patch.object(self.m, "_trash") as trash:
+            self.assertFalse(self.m.move_and_relaunch(app))
+            trash.assert_not_called()
+        self.assertTrue(any("Could not move" in s for s in shown))
+
+    def test_maybe_offer_move_choices(self):
+        with mock.patch.object(self.m, "ask_user", return_value=self.m.LATER), \
+                mock.patch.object(self.m, "move_and_relaunch") as mv:
+            self.assertFalse(self.m.maybe_offer_move())
+            mv.assert_not_called()
+        with mock.patch.object(self.m, "ask_user", return_value=self.m.MOVE), \
+                mock.patch.object(self.m, "move_and_relaunch", return_value=True):
+            self.assertTrue(self.m.maybe_offer_move())
+        with mock.patch.object(self.m, "ask_user", return_value=self.m.NEVER):
+            self.assertFalse(self.m.maybe_offer_move())
+        self.assertTrue((Path(self.home.name) / self.m.OPT_OUT_FILE).exists())
+        with mock.patch.object(self.m, "ask_user") as ask:          # remembered
+            self.assertFalse(self.m.maybe_offer_move())
+            ask.assert_not_called()
+
+
 class EnvFileTests(unittest.TestCase):
     def test_loads_without_overriding_existing(self):
         import envfile

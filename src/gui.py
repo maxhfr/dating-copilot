@@ -39,7 +39,7 @@ def free_port() -> int:
 
 CHECK_MODULES = ("judge", "main", "notifier", "runlog", "settings", "secrets_store",
                  "scheduler", "controller", "app", "paths", "browser_setup",
-                 "keep_awake", "envfile", "cli", "platforms.base",
+                 "keep_awake", "envfile", "cli", "mac_install", "platforms.base",
                  "platforms.tinder", "platforms.capture")
 
 
@@ -71,6 +71,9 @@ def check() -> int:
 def main():
     if "--check" in sys.argv:
         return check()
+    import mac_install
+    if mac_install.maybe_offer_move():      # moved to /Applications and relaunched
+        return 0
     import runlog
     import secrets_store
     if getattr(sys, "frozen", False):

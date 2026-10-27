@@ -28,7 +28,8 @@ hidden += collect_submodules("keyring.backends")
 hidden += ["judge", "main", "notifier", "runlog", "settings", "secrets_store",
            "scheduler", "controller", "app", "paths", "browser_setup",
            "platforms", "platforms.base", "platforms.tinder",
-           "platforms.capture", "keep_awake", "envfile", "cli", "tzlocal",
+           "platforms.capture", "keep_awake", "envfile", "cli", "mac_install",
+           "tzlocal",
            "yaml"]
 
 datas += [(str(ROOT / "src" / "ui.html"), "."),
