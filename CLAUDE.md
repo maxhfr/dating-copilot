@@ -13,9 +13,9 @@ opens, presses Start, and it swipes for him on dating apps automatically.
 - Runs on Mac now (also had a Windows PC before). Target: a Mac `.app`
   first; Windows `.exe` later if wanted.
 - Scope is **auto-liking only**. The messaging side (chat.py, gate.py,
-  chat_loop.py, style.py) exists but was deprioritised because drafted
-  messages weren't good enough. Do not extend it unless asked. Leave it in
-  the tree, unused.
+  chat_loop.py, style.py) was deprioritised because drafted messages weren't
+  good enough. It now lives in `_archive/messaging/`. Do not extend it unless
+  asked.
 - Not a product. No accounts, no server, no telemetry, no multi-user.
   Max supplies his own Anthropic API key.
 
@@ -33,7 +33,7 @@ Bot API.
 
 ```
 config/rubric.yaml    hard filters (age, distance, height, obese, min_photos)
-config/scoring.yaml   70 photo / 30 text weights, thresholds.auto_like = 58
+config/scoring.yaml   70 photo / 30 text weights, thresholds.auto_like = 65
 src/main.py           the swipe session (entry point)
 src/judge.py          3-stage evaluation (see below)
 src/notifier.py       Telegram digests / alerts
@@ -89,6 +89,17 @@ It should be revoked in BotFather and replaced. In the app, move secrets to
 the OS keychain (`keyring`) rather than a plaintext `.env`.
 
 ## 5. Next steps (the actual task)
+
+**Status (Oct 27 2026):** Phase 0 passed on live Tinder. Phases 1-3 are done
+and pushed on branch `phase1-platform-interface`: Platform interface and
+registry, local control app (Run / Calibration / Settings / Schedule /
+Setup, SQLite run log, keychain), scheduler with limits. Phase 4 has a
+PyInstaller spec and build script, validated on Linux; the macOS `.app` build
+and the native window still need a first run on Max's Mac. Messaging code is
+archived in `_archive/messaging/`. A Windows build exists (spec, `run.bat`,
+GitHub Actions workflow in `.github/workflows/build.yml` producing the Mac and
+Windows zips); it is CI-verified but not yet tried on a real Windows PC.
+Phase 5 (Hinge, Bumble) has not started.
 
 Build in this order. Stop and check with Max after each phase.
 

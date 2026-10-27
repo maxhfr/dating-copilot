@@ -19,12 +19,16 @@ import os
 import yaml
 from anthropic import Anthropic
 
+from paths import config_dir
+
 client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 MODEL = "claude-haiku-4-5-20251001"
 
-with open("config/rubric.yaml") as f:
+CONFIG = config_dir()
+
+with open(CONFIG / "rubric.yaml") as f:
     RUBRIC = yaml.safe_load(f)
-with open("config/scoring.yaml") as f:
+with open(CONFIG / "scoring.yaml") as f:
     WEIGHTS = yaml.safe_load(f)
 
 AUTO_LIKE = WEIGHTS["thresholds"]["auto_like"]

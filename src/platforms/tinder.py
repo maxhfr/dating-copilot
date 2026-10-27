@@ -68,7 +68,11 @@ CAPTCHA_MARKERS = [
 ]
 
 
-class Tinder:
+from platforms.base import Platform
+from platforms.capture import save_capture
+
+
+class Tinder(Platform):
     def __init__(self, headless=False):
         self.headless = headless
 
@@ -91,14 +95,22 @@ class Tinder:
         await self.ctx.close()
         await self._pw.stop()
 
-    async def ensure_logged_in(self):
+    async def ensure_logged_in(self, wait_for_login=None):
         await self.page.goto("https://tinder.com/app/recs",
                              wait_until="domcontentloaded")
         await asyncio.sleep(3)
         if "/app/" not in self.page.url:
+            if wait_for_login is not None:
+                # Driven by the app: it polls is_logged_in() instead of
+                # waiting for Enter in a terminal.
+                await wait_for_login(self)
+                return
             print("\n>>> Not logged in. Log in manually in the browser window.")
             print(">>> Press Enter here once you're on the swipe screen.\n")
             input()
+
+    async def is_logged_in(self) -> bool:
+        return "/app/" in self.page.url
 
     async def check_blocked(self, expect: str = "recs") -> str | None:
         """Detect a CAPTCHA, rate-limit wall or ban screen.
@@ -160,6 +172,10 @@ class Tinder:
             "Plus tard",
             "Ignorer",
             "Refuser",
+            # Cookie/tracking banner. It holds keyboard focus, so the arrow
+            # keys never reach the deck. Decline; never add an accept label.
+            "Je refuse",
+            "Reject all",
         ]
         for label in DISMISS:
             try:
@@ -217,6 +233,8 @@ class Tinder:
             ("élargis tes critères", "no profiles left - widen your filters"),
             ("c'est un match", "a match popup is blocking the deck"),
             ("obtenir tinder", "an upsell popup is blocking the deck"),
+            # Tinder Plus upsell shown when the free likes run out.
+            ("likes illimités", "out of likes (Tinder Plus popup)"),
             ("abonne", "a subscription popup is blocking the deck"),
             ("premier like", "Gold upsell popup ('first like') blocking the deck"),
             ("tinder gold", "Tinder Gold upsell blocking the deck"),
@@ -267,8 +285,14 @@ class Tinder:
         except Exception:
             return None
 
+        save_capture(body)
+
         name, age = _parse_name_age(body)
         if not name:
+            if _panel_open(body):
+                # Leave the deck usable: close the panel we just opened.
+                await self.page.keyboard.press("ArrowDown")
+                await asyncio.sleep(random.uniform(0.4, 1.0))
             return None
 
         for _ in range(3):
@@ -460,6 +484,11 @@ _LIFESTYLE_KEYS = {
 }
 
 
+def _panel_open(body: str) -> bool:
+    """True when the profile panel is showing (it ends with 'Bloquer <name>')."""
+    return any(l.strip().startswith("Bloquer") for l in body.splitlines())
+
+
 def _is_emoji_only(line: str) -> bool:
     """Tinder pads some fields with a decorative emoji on its own line."""
     return bool(line) and not re.search(r"[A-Za-zÀ-ÿ0-9]", line)
@@ -479,7 +508,7 @@ def _clean_lines(body: str) -> list[str]:
 def _parse_name_age(body: str) -> tuple[str | None, int | None]:
     """Name and age arrive concatenated, e.g. 'Morgan27'."""
     for l in _clean_lines(body):
-        m = re.fullmatch(r"([^\d]{2,30}?)(\d{2})", l)
+        m = re.fullmatch(r"([^\d]{1,30}?)(\d{2})", l)
         if m and 18 <= int(m.group(2)) <= 99:
             return m.group(1).strip(), int(m.group(2))
     return None, None

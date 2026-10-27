@@ -10,3 +10,7 @@ dom_dump*
 *_probe*.png
 state/
 sessions/
+profile-*.txt
+.build-venv/
+build/
+dist/

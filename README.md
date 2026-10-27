@@ -3,8 +3,8 @@
 Auto-liking for Tinder, using the Claude API. Scores every profile against
 your rubric, swipes for you, and sends a Telegram digest.
 
-Messaging exists too (`src/chat_loop.py`) but is optional and off by
-default — see **Messaging** at the bottom.
+Auto-liking only. The old messaging code is parked in
+`_archive/messaging/` — see **Archived: messaging** at the bottom.
 
 ## What the swipe side does
 
@@ -56,10 +56,21 @@ Then verify everything before the first run:
 python check_setup.py
 ```
 
+Unit tests (offline, no API calls, no browser):
+
+```bash
+python test_parsers.py     # page-text parsers, platform registry
+python test_session.py     # swipe loop, run log, stop/start (fake platform)
+python test_app.py         # settings, keys and the local web app
+python test_schedule.py    # schedule limits, scheduler, login agent
+python test_packaging.py   # paths and browser-setup helpers
+```
+
 ## Running
 
 ```bash
-./run.sh swipe
+./run.sh swipe            # Tinder (the default)
+./run.sh swipe tinder     # platform can be named explicitly
 ```
 
 or
@@ -69,13 +80,98 @@ source .venv/bin/activate && set -a && source .env && set +a
 python src/main.py
 ```
 
+To save raw profile text for building parser test fixtures, run with
+`CAPTURE=1 ./run.sh swipe`. Files go to `~/.dating-copilot/captures/`
+(outside the repo). They contain real names and bios, so anonymise before
+sharing or committing.
+
 First run opens a real Chromium window. Log into Tinder by hand — the
 session persists in `~/.dating-copilot/` after that. The bot never sees
 your password.
 
+## Control app
+
+```bash
+pip install -r requirements.txt   # adds Flask and pywebview
+./run.sh app
+```
+
+Opens a window with four tabs: **Run** (Start/Stop, live feed of every
+profile with score and reason), **Calibration** (score histogram and like
+rate, for choosing `auto_like`), **Settings** (age, distance, height,
+threshold, session limits, quiet hours) and **Setup** (what is configured).
+
+- Every profile reviewed is logged to `~/.dating-copilot/runlog.db`
+  (name, age, score, reason; no photos or bios), including CLI runs.
+- Settings edit `config/rubric.yaml` and `config/scoring.yaml` in place, so
+  comments survive. Scoring weights are not editable in the app, and the
+  session limits are capped (100 likes, 500 profiles) on purpose.
+- A manual Start skips the random "skip this run" roll but still respects
+  quiet hours.
+- The server listens on 127.0.0.1 only; every action needs a per-launch token.
+- **Setup tab:** "Log in to Tinder" opens the browser; log in by hand and it
+  closes itself and remembers you. API keys are saved to the macOS Keychain
+  (write-only: they are never shown again). Precedence is shell environment,
+  then keychain, then `.env`.
+- **Schedule tab:** up to 4 sessions a day, at least 3 hours apart, none in
+  quiet hours, with jitter. Scheduled runs keep the random skip. The app must
+  be open and the Mac awake at those times. The app keeps the Mac awake only
+  while a session is running (macOS `caffeinate`; the screen may still turn
+  off, and a closed lid still sleeps it); otherwise the Mac sleeps normally.
+  A time missed while asleep runs once, late, when the Mac wakes (within 2
+  hours, and never within 2 hours of another session). To have macOS open the
+  app at login: `python packaging/launch_agent.py install` (and `uninstall`).
+- **Why not a server or a Raspberry Pi?** The account is fragile and the
+  browser must stay headed on a home connection. A server or headless board
+  means a different device and network and is the riskiest way to run this.
+  A spare Mac that stays on at home is the safe always-on option.
+- Without `pywebview` the app opens in your browser instead.
+
+## Packaging a Mac app
+
+The app icon lives in `packaging/icon/` (`icon.svg` is the source; `icon_1024.png`
+and `icon.icns` are generated from it and committed).
+
+```bash
+./packaging/build_mac.sh
+```
+
+Builds `dist/Dating Copilot.app` with PyInstaller (run it on the Mac you will
+use it on). It is unsigned, which is fine for personal use: right-click the
+app, choose **Open**, and confirm. If macOS still refuses:
+`xattr -dr com.apple.quarantine "dist/Dating Copilot.app"`.
+
+- Chromium is not bundled; the app downloads it on first launch (~190 MB).
+- Inside the app, the editable config is copied to `~/.dating-copilot/config/`
+  on first launch, and `.env` can live in `~/.dating-copilot/.env`.
+- The spec is `packaging/dating-copilot.spec`. The build was verified on Linux
+  (it serves the UI and seeds its config); the macOS `.app` bundle itself has
+  not been built yet.
+
+## Windows
+
+The same app runs on Windows (the browser window comes from Edge WebView2).
+
+- **Easiest: let GitHub build it.** On GitHub open the repository's **Actions**
+  tab, choose **build**, press **Run workflow**, and when it finishes download
+  `DatingCopilot-windows.zip` (and `DatingCopilot-mac.zip`) from the run's
+  Artifacts. Unzip it and double-click `dating-copilot.exe`.
+- **Or build it yourself** on the Windows PC:
+  `powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1`.
+- The app is unsigned, so Windows says "Windows protected your PC": click
+  **More info** then **Run anyway**.
+- From source: `run.bat app` (window) or `run.bat swipe` (command line).
+- Keep the PC awake during sessions (done automatically), and open the app at
+  login with `python packaging\launch_agent.py install` (`uninstall` removes it).
+- The Tinder login is per machine, so log in again on each. Don't run the app
+  on two machines at the same time: the account is fragile and the daily
+  session limits are counted per machine.
+- Not verified on a real Windows PC yet: the CI build and import check pass,
+  but tell me what you see when you try it.
+
 ## Tuning
 
-`auto_like: 58` is a starting guess, not a calibrated number. Read the
+`auto_like: 65` is a starting guess, not a calibrated number. Read the
 first digest, see what scores it gave people you'd actually have liked,
 and move it. Too low and you burn 45 likes on mediocre matches; too high
 and you don't spend them.
@@ -140,18 +236,9 @@ in the rubric can't be applied there.
 **This violates Tinder's ToS.** Accounts do get banned, and because the
 account is phone-verified, a ban is sticky.
 
-## Messaging (optional, off by default)
+## Archived: messaging
 
-```bash
-DRY_RUN=1 python src/chat_loop.py --once    # drafts, shows, sends nothing
-DRY_RUN=0 python src/chat_loop.py           # continuous loop, sends
-```
-
-It decides opener / follow-up / reply per match, drafts in your voice
-(`config/persona.md`), strips AI writing tells (`src/style.py`), reviews
-each draft with a second model call (`src/gate.py`), and escalates to
-Telegram the moment a plan starts forming.
-
-**The two scripts cannot run at the same time** — they share the browser
-session directory and Playwright locks it. Stop one before starting the
-other.
+The messaging side (chat loop, opener drafting, quality gate, persona and
+date rules) is no longer part of the app. It lives in `_archive/messaging/`
+with its original `src/` and `config/` layout, so it can be moved back if
+it's ever revived. It is not run, imported or checked by anything here.
