@@ -46,6 +46,28 @@ class BrowserTests(unittest.TestCase):
             (Path(d) / "chromium-1248").mkdir()
             self.assertTrue(browser_setup.chromium_installed())
 
+    def test_bundle_mode_path_is_replaced_by_standard_folder(self):
+        # PyInstaller's hook sets PLAYWRIGHT_BROWSERS_PATH=0 (browsers inside
+        # the app); we must point at the standard cache so Chromium is found.
+        with mock.patch.dict(os.environ, {"PLAYWRIGHT_BROWSERS_PATH": "0"}):
+            p = browser_setup.use_standard_browsers_path()
+            self.assertEqual(p, browser_setup.default_browsers_dir())
+            self.assertEqual(os.environ["PLAYWRIGHT_BROWSERS_PATH"],
+                             str(browser_setup.default_browsers_dir()))
+
+    def test_explicit_path_is_kept(self):
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.dict(os.environ, {"PLAYWRIGHT_BROWSERS_PATH": d}):
+            self.assertEqual(browser_setup.use_standard_browsers_path(), Path(d))
+            self.assertEqual(os.environ["PLAYWRIGHT_BROWSERS_PATH"], d)
+
+    def test_unset_defaults_to_standard_folder(self):
+        env = {k: v for k, v in os.environ.items() if k != "PLAYWRIGHT_BROWSERS_PATH"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            browser_setup.use_standard_browsers_path()
+            self.assertEqual(os.environ["PLAYWRIGHT_BROWSERS_PATH"],
+                             str(browser_setup.default_browsers_dir()))
+
     def test_install_skips_when_present(self):
         with mock.patch.object(browser_setup, "chromium_installed", return_value=True), \
                 mock.patch("subprocess.run") as run:

@@ -29,6 +29,20 @@ def home() -> Path:
                                Path.home() / ".dating-copilot"))
 
 
+def log_line(text: str):
+    """Append a timestamped line to ~/.dating-copilot/app.log (best effort,
+    rotated at 1 MB). Never put secrets in `text`."""
+    try:
+        home().mkdir(parents=True, exist_ok=True)
+        f = home() / "app.log"
+        if f.exists() and f.stat().st_size > 1_000_000:
+            f.replace(home() / "app.log.1")
+        with open(f, "a", encoding="utf-8") as fh:
+            fh.write(time.strftime("%Y-%m-%d %H:%M:%S ") + text.rstrip() + "\n")
+    except Exception:
+        pass
+
+
 def _connect() -> sqlite3.Connection:
     home().mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(home() / "runlog.db")

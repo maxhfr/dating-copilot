@@ -39,6 +39,10 @@ def main():
     if getattr(sys, "frozen", False):
         runlog.home().mkdir(parents=True, exist_ok=True)
         os.chdir(runlog.home())        # debug_nocard.* etc. land here
+        import browser_setup
+        browser_setup.use_standard_browsers_path()   # before any Playwright launch
+        # A packaged app has no terminal: keep prints and errors in a file.
+        sys.stdout = sys.stderr = open(runlog.home() / "app.log", "a", buffering=1)
     secrets_store.load_into_env()      # shell > keychain > .env
     load_env()
     if not os.environ.get("ANTHROPIC_API_KEY"):

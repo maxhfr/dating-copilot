@@ -14,6 +14,7 @@ import asyncio
 import os
 import random
 import sys
+import traceback
 from datetime import datetime
 
 import judge
@@ -181,6 +182,7 @@ async def run_session(platform: str = "tinder", on_profile=None, on_status=None,
         stopped = "interrupted by you"
     except Exception as e:
         stopped = f"{type(e).__name__}: {e}"
+        runlog.log_line("session error:\n" + traceback.format_exc())
 
     if stopped and not stopped.startswith(QUIET_STOPS):
         notifier.alert(f"Session stopped: {stopped}")
@@ -231,6 +233,7 @@ async def login_only(platform: str = "tinder", on_status=None,
         return {"logged_in": False}
     except Exception as e:
         say(f"Login failed: {type(e).__name__}: {e}")
+        runlog.log_line("login failed:\n" + traceback.format_exc())
         return {"logged_in": False}
 
 

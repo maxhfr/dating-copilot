@@ -9,15 +9,32 @@ import sys
 from pathlib import Path
 
 
-def browsers_dir() -> Path:
-    env = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
-    if env and env != "0":
-        return Path(env)
+def default_browsers_dir() -> Path:
     if sys.platform == "darwin":
         return Path.home() / "Library" / "Caches" / "ms-playwright"
     if sys.platform.startswith("win"):
         return Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ms-playwright"
     return Path.home() / ".cache" / "ms-playwright"
+
+
+def browsers_dir() -> Path:
+    env = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+    if env and env != "0":
+        return Path(env)
+    return default_browsers_dir()
+
+
+def use_standard_browsers_path() -> Path:
+    """Make Playwright look in the normal cache folder.
+
+    PyInstaller's Playwright hook sets PLAYWRIGHT_BROWSERS_PATH=0, which tells
+    Playwright to look for browsers inside the app bundle (where we do not
+    ship any), so launching fails even though Chromium is installed. Point it
+    at the standard folder instead, unless a real path was already given.
+    """
+    if os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "0") == "0":
+        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(default_browsers_dir())
+    return browsers_dir()
 
 
 def chromium_installed() -> bool:

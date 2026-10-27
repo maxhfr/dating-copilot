@@ -32,6 +32,7 @@ class FakePlatform(Platform):
     swipes = []
     logged_in = True
     delay = 0
+    fail_login = False
 
     def __init__(self, headless=False):
         self.queue = list(FakePlatform.script)
@@ -43,6 +44,8 @@ class FakePlatform(Platform):
         return False
 
     async def ensure_logged_in(self, wait_for_login=None):
+        if FakePlatform.fail_login:
+            raise RuntimeError("browser failed to launch")
         if wait_for_login is not None and not self.logged_in:
             await wait_for_login(self)
 
@@ -192,6 +195,24 @@ class LoginTests(unittest.TestCase):
         threading.Timer(0.5, ev.set).start()
         r = asyncio.run(main.login_only(stop_event=ev, timeout=30))
         self.assertFalse(r["logged_in"])
+
+    def test_launch_failure_is_reported_and_logged(self):
+        FakePlatform.fail_login = True
+        try:
+            status = []
+            r = asyncio.run(main.login_only(on_status=status.append, timeout=5))
+        finally:
+            FakePlatform.fail_login = False
+        self.assertFalse(r["logged_in"])
+        self.assertTrue(any("Login failed: RuntimeError" in m for m in status))
+        log = (runlog.home() / "app.log").read_text()
+        self.assertIn("browser failed to launch", log)
+        self.assertIn("Traceback", log)
+
+    def test_controller_messages_are_logged(self):
+        c = SessionController()
+        c.messages.append("hello from the controller")
+        self.assertIn("hello from the controller", (runlog.home() / "app.log").read_text())
 
     def test_timeout_reports_failure(self):
         FakePlatform.logged_in = False

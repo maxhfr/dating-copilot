@@ -8,11 +8,21 @@ the browser is closed by the platform's context manager either way.
 import asyncio
 import importlib
 import threading
+import traceback
 from collections import deque
 
 import judge
 import notifier
+import runlog
 import main as session_main
+
+
+class _LoggedMessages(deque):
+    """Status lines for the UI that are also appended to app.log."""
+
+    def append(self, item):
+        super().append(item)
+        runlog.log_line(str(item))
 
 
 class SessionController:
@@ -24,7 +34,7 @@ class SessionController:
         self._lock = threading.Lock()
         self.state = "idle"            # idle | running | stopping | error
         self.last_summary = None
-        self.messages = deque(maxlen=200)
+        self.messages = _LoggedMessages(maxlen=200)
 
     def is_running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
@@ -96,6 +106,7 @@ class SessionController:
             self.state = "idle"
         except Exception as e:
             self.messages.append(f"error: {type(e).__name__}: {e}")
+            runlog.log_line(traceback.format_exc())
             self.state = "error"
         finally:
             loop.close()

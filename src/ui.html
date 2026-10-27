@@ -89,6 +89,8 @@
   <section id="setup">
     <ul class="checks" id="checks"></ul>
     <div class="row"><button class="secondary" id="login">Log in to Tinder</button>
+      <button class="secondary" id="logincancel" style="display:none">Cancel</button>
+      <span class="pill" id="loginstate"></span>
       <span class="muted">Opens the browser window. Log in by hand; it closes itself and remembers you.</span></div>
     <div class="log" id="loginlog" style="display:none"></div>
     <h3>API keys</h3>
@@ -128,6 +130,13 @@ async function refresh() {
   $("start").disabled = s.running; $("stop").disabled = !s.running;
   $("log").textContent = s.messages.length ? s.messages.join("\n") : "No session running.";
   $("log").scrollTop = 1e9;
+  // Mirror progress onto the Setup tab so login messages and errors show.
+  $("login").disabled = s.running;
+  $("logincancel").style.display = s.running ? "" : "none";
+  $("loginstate").textContent = s.running ? "running" : "";
+  if (s.messages.length) { $("loginlog").style.display = "block"; $("loginlog").textContent = s.messages.join("\n"); }
+  else if (s.running) { $("loginlog").style.display = "block"; $("loginlog").textContent = "Starting..."; }
+  else if ($("loginlog").textContent === "Browser opening...") { $("loginlog").style.display = "none"; }
   const d = s.last_summary;
   $("summary").textContent = d && !s.running ? `Last: ${d.reviewed} reviewed, ${d.likes} likes. Stopped: ${d.stopped ?? "finished"}` : "";
   const feed = (await api("/api/feed?limit=40")).data;
@@ -164,6 +173,7 @@ $("save").onclick = async () => {
   $("smsg").style.color = r.ok ? "var(--ok)" : "var(--bad)";
   $("smsg").textContent = r.ok ? "Saved." : (r.data.error || "Could not save");
 };
+$("logincancel").onclick = async () => { await api("/api/stop", {}); refresh(); };
 $("login").onclick = async () => {
   const r = await api("/api/login", {});
   $("loginlog").style.display = "block";
