@@ -9,10 +9,11 @@ Run this from cron 3-4x/day rather than continuously.
 import asyncio
 import os
 import random
+import sys
 from datetime import datetime
 from judge import evaluate
 from notifier import session_digest, alert
-from platforms.tinder import Tinder
+from platforms import get_platform
 
 MAX_LIKES = int(os.environ.get("MAX_LIKES", "45"))
 MAX_PROFILES = int(os.environ.get("MAX_PROFILES", "250"))
@@ -29,7 +30,7 @@ HOLD_ON_STOP = os.environ.get("HOLD_ON_STOP", "1") == "1"
 QUIET_HOURS = range(1, 8)   # no sessions 01:00-07:59 Paris
 
 
-async def run_session():
+async def run_session(platform: str = "tinder"):
     if datetime.now().hour in QUIET_HOURS:
         print("Quiet hours — skipping.")
         return
@@ -49,7 +50,7 @@ async def run_session():
     last_reported = 0
 
     try:
-        async with Tinder(headless=False) as t:
+        async with get_platform(platform)(headless=False) as t:
             await t.ensure_logged_in()
 
             while likes < like_cap and reviewed < profile_cap:
@@ -137,4 +138,4 @@ async def run_session():
 
 
 if __name__ == "__main__":
-    asyncio.run(run_session())
+    asyncio.run(run_session(sys.argv[1] if len(sys.argv) > 1 else "tinder"))

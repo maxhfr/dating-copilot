@@ -331,6 +331,21 @@ class DiagnoseNoCard(unittest.TestCase):
         self.assertTrue(self._diagnose("Matchs\nMessages\n").startswith("no card found"))
 
 
+class PlatformRegistry(unittest.TestCase):
+    def test_tinder_registered(self):
+        from platforms import get_platform
+        from platforms.base import Platform
+        from platforms.tinder import Tinder
+        self.assertIs(get_platform("tinder"), Tinder)
+        self.assertTrue(issubclass(get_platform("tinder"), Platform))
+
+    def test_unknown_platform_raises(self):
+        from platforms import get_platform
+        with self.assertRaises(ValueError) as cm:
+            get_platform("hinge")
+        self.assertIn("tinder", str(cm.exception))
+
+
 class PlatformInterface(unittest.TestCase):
     def test_tinder_implements_platform(self):
         from platforms.base import Platform

@@ -65,7 +65,8 @@ python test_parsers.py
 ## Running
 
 ```bash
-./run.sh swipe
+./run.sh swipe            # Tinder (the default)
+./run.sh swipe tinder     # platform can be named explicitly
 ```
 
 or
