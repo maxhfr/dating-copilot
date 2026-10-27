@@ -64,6 +64,7 @@ python test_session.py     # swipe loop, run log, stop/start (fake platform)
 python test_app.py         # settings, keys and the local web app
 python test_schedule.py    # schedule limits, scheduler, login agent
 python test_packaging.py   # paths and browser-setup helpers
+python test_matches.py     # like -> match conversion
 ```
 
 ## Running
@@ -179,6 +180,20 @@ The same app runs on Windows (the browser window comes from Edge WebView2).
   session limits are counted per machine.
 - Not verified on a real Windows PC yet: the CI build and import check pass,
   but tell me what you see when you try it.
+
+## Match rate (like to match conversion)
+
+The Run and Calibration tabs show a **match rate**: new matches divided by likes
+sent since tracking began. At the start and the end of every session the app
+notes which matches are visible in the Tinder sidebar (a passive read: no
+clicks, no navigation). The first time it only notes the matches you already
+have, so nothing old is counted. Calibration also shows the match rate by score
+band, to check whether higher scores really match more.
+
+Honest limits: matches that arrive after a session are added at the next one, so
+recent numbers lag; the per-score figures credit a match to a like by first name,
+so they are approximate. The sidebar reader is new and has to be confirmed on
+the live site: after one session, Calibration shows how many match tiles it saw.
 
 ## Tuning
 

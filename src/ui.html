@@ -89,6 +89,12 @@
   .tile { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:14px 18px; box-shadow:var(--shadow); }
   .tile .v { font-size:28px; font-weight:750; letter-spacing:-.03em; line-height:1.15; }
   .tile .k { font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+  .tile .sub { font-size:12px; color:var(--muted); margin-top:2px; min-height:1.2em; }
+  table.bands { width:100%; border-collapse:collapse; margin-top:6px; }
+  table.bands th, table.bands td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); font-size:14px; }
+  table.bands th { color:var(--muted); font-weight:500; font-size:12px; text-transform:uppercase; letter-spacing:.05em; }
+  table.bands tr:last-child td { border-bottom:0; }
+  table.bands .good { color:var(--ok); font-weight:650; }
 
   details { margin:0 0 16px; } summary { cursor:pointer; color:var(--muted); font-size:13px; padding:2px 4px; }
   .log { background:var(--surface-2); border-radius:var(--r-sm); padding:10px 12px; font:12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; max-height:150px; overflow:auto; white-space:pre-wrap; margin-top:8px; word-break:break-word; }
@@ -210,6 +216,7 @@
       <div class="tile"><div class="v" id="s_total">0</div><div class="k">Recent profiles</div></div>
       <div class="tile"><div class="v" id="s_likes">0</div><div class="k">Liked</div></div>
       <div class="tile"><div class="v" id="s_rate">-</div><div class="k">Like rate</div></div>
+      <div class="tile"><div class="v" id="s_match">-</div><div class="k">Match rate</div><div class="sub" id="s_match_sub"></div></div>
     </div>
     <div class="feed" id="feed"></div>
   </section>
@@ -220,10 +227,17 @@
       <div class="tile"><div class="v" id="t_total">0</div><div class="k">Profiles logged</div></div>
       <div class="tile"><div class="v" id="t_likes">0</div><div class="k">Liked</div></div>
       <div class="tile"><div class="v" id="rate">-</div><div class="k">Like rate</div></div>
+      <div class="tile"><div class="v" id="t_matches">-</div><div class="k">Matches</div></div>
+      <div class="tile"><div class="v" id="t_mrate">-</div><div class="k">Match rate</div><div class="sub" id="t_msub"></div></div>
     </div>
     <div class="card">
       <div class="bars" id="bars"></div><div class="axis" id="axis"></div>
       <p class="muted small" id="calnote" style="margin:14px 0 0"></p>
+    </div>
+    <div class="card">
+      <h2>Match rate by score</h2>
+      <p class="muted small" id="convnote"></p>
+      <table class="bands"><thead><tr><th>Score</th><th>Likes</th><th>Matches</th><th>Match rate</th></tr></thead><tbody id="bands"></tbody></table>
     </div>
   </section>
 
@@ -340,6 +354,13 @@ function emptyState(text) {
   d.appendChild(s); d.appendChild(el("div", "", text)); return d;
 }
 
+function pct(x) { return x == null ? "-" : Math.round(x * 100) + "%"; }
+function renderMatchTile(c) {
+  if (!c || !c.tracking) { $("s_match").textContent = "-"; $("s_match_sub").textContent = "starts with your next session"; return; }
+  $("s_match").textContent = pct(c.rate);
+  $("s_match_sub").textContent = `${c.matches} ${c.matches === 1 ? "match" : "matches"} / ${c.likes} likes`;
+}
+
 async function refresh() {
   const s = (await api("/api/status")).data;
   if (AUTO_LIKE === null) await loadThreshold();
@@ -362,6 +383,7 @@ async function refresh() {
   const d = s.last_summary;
   $("summary").textContent = d && !s.running ? `Last session: ${d.reviewed} reviewed, ${d.likes} liked. Stopped: ${d.stopped ?? "finished"}` : "";
 
+  renderMatchTile(((await api("/api/stats")).data || {}).conversion);
   const feed = (await api("/api/feed?limit=40")).data;
   const body = $("feed"); body.textContent = "";
   const likes = feed.filter(p => p.decision === "like").length;
@@ -409,9 +431,31 @@ async function loadStats() {
     const thr = el("div", "thr"); thr.style.left = AUTO_LIKE + "%"; thr.appendChild(el("b", "", "threshold " + AUTO_LIKE));
     $("bars").appendChild(thr);
   }
+  renderConversion(s.conversion);
   $("calnote").textContent = s.total
     ? "Pick the threshold that gives the like rate you would have swiping by hand. Raise it in Settings to be pickier, lower it to like more."
     : "No data yet. Run a session and the scores will appear here.";
+}
+function renderConversion(c) {
+  const body = $("bands"); body.textContent = "";
+  const tracking = !!(c && c.tracking);
+  $("t_matches").textContent = tracking ? c.matches : "-";
+  $("t_mrate").textContent = tracking ? pct(c.rate) : "-";
+  $("t_msub").textContent = tracking ? `${c.matches} / ${c.likes} likes` : "";
+  if (!tracking) {
+    $("convnote").textContent = "Match tracking starts with your next session: the app notes the matches you already have, then counts every new one. Nothing is counted retroactively.";
+    const tr = el("tr"); const td = el("td", "muted", "No data yet."); td.colSpan = 4; tr.appendChild(td); body.appendChild(tr); return;
+  }
+  let note = `Counted since ${new Date(c.since * 1000).toLocaleDateString()}. Matches that arrive after a session are added at the next one, so recent numbers lag. Per-score figures are approximate (a match is credited to a like by first name). Last 7 days: ${c.last7.matches} matches / ${c.last7.likes} likes (${pct(c.last7.rate)}).`;
+  if (c.visible_matches === 0) note += " The last check saw 0 match tiles: if you do have matches, the reader needs a fix, tell me.";
+  $("convnote").textContent = note;
+  if (!c.bands.length) { const tr = el("tr"); const td = el("td", "muted", "No scored likes yet."); td.colSpan = 4; tr.appendChild(td); body.appendChild(tr); return; }
+  const best = Math.max(...c.bands.map(b => b.rate ?? 0));
+  c.bands.forEach(b => {
+    const tr = el("tr"); tr.appendChild(el("td", "", `${b.from}-${b.to - 1}`)); tr.appendChild(el("td", "", b.likes));
+    tr.appendChild(el("td", "", b.matches)); tr.appendChild(el("td", (b.rate != null && b.rate === best && best > 0) ? "good" : "", pct(b.rate)));
+    body.appendChild(tr);
+  });
 }
 async function loadSettings() {
   const s = (await api("/api/settings")).data; $("fields").textContent = "";

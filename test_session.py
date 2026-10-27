@@ -33,6 +33,8 @@ class FakePlatform(Platform):
     logged_in = True
     delay = 0
     fail_login = False
+    match_snapshots = []      # each call pops the next list; None = unavailable
+    snapshot_error = False
 
     def __init__(self, headless=False):
         self.queue = list(FakePlatform.script)
@@ -68,6 +70,13 @@ class FakePlatform(Platform):
     async def idle(self):
         pass
 
+    async def snapshot_matches(self):
+        if FakePlatform.snapshot_error:
+            raise RuntimeError("sidebar exploded")
+        if FakePlatform.match_snapshots:
+            return FakePlatform.match_snapshots.pop(0)
+        return []
+
     async def diagnose_no_card(self):
         return "out of likes (Tinder Plus popup)"
 
@@ -86,7 +95,9 @@ class FakeJudge:
                 "why": "fake", "hooks": ["travel"], "breakdown": {"hair": ("blonde", 16)}}
 
 
-class SessionTests(unittest.TestCase):
+class SessionBase(unittest.TestCase):
+    """Shared fixture: fake platform and judge, no real network."""
+
     def setUp(self):
         FakePlatform.swipes = []
         self._patches = [
@@ -118,6 +129,8 @@ class SessionTests(unittest.TestCase):
         kw.setdefault("quiet_hours", range(0))   # never quiet in tests
         return asyncio.run(main.run_session(**kw))
 
+
+class SessionTests(SessionBase):
     def test_callbacks_and_runlog(self):
         FakePlatform.script = [prof(1, "Hi"), prof(2, "Lo"), prof(3, "Hi")]
         got, status = [], []
@@ -166,6 +179,49 @@ class SessionTests(unittest.TestCase):
         s = self.run_it(max_likes=4)
         self.assertGreaterEqual(s["likes"], 1)
         self.assertLessEqual(s["likes"], 4)
+
+
+class MatchTrackingTests(SessionBase):
+    """Snapshots before and after a session feed the match statistics."""
+
+    def setUp(self):
+        super().setUp()
+        FakePlatform.match_snapshots = []
+        FakePlatform.snapshot_error = False
+
+    def tearDown(self):
+        FakePlatform.match_snapshots = []
+        FakePlatform.snapshot_error = False
+        super().tearDown()
+
+    def test_baseline_then_new_match_after_the_session(self):
+        FakePlatform.script = [prof(1, "Hi"), prof(2, "Hi")]
+        FakePlatform.match_snapshots = [
+            [{"id": "old1", "name": "Marine"}],                             # before
+            [{"id": "old1", "name": "Marine"}, {"id": "new1", "name": "Hi1"}],  # after
+        ]
+        status = []
+        self.run_it(on_status=status.append)
+        c = runlog.conversion_stats()
+        self.assertTrue(c["tracking"])
+        self.assertEqual(c["matches"], 1)
+        self.assertEqual(c["likes"], 2)
+        self.assertTrue(any("match tracking started" in m for m in status))
+        self.assertTrue(any("1 new match" in m for m in status))
+
+    def test_unavailable_snapshot_does_not_break_the_session(self):
+        FakePlatform.script = [prof(1, "Hi")]
+        FakePlatform.match_snapshots = [None, None]
+        s = self.run_it()
+        self.assertEqual(s["likes"], 1)
+        self.assertFalse(runlog.conversion_stats()["tracking"])
+
+    def test_snapshot_error_does_not_break_the_session(self):
+        FakePlatform.script = [prof(1, "Hi")]
+        FakePlatform.snapshot_error = True
+        s = self.run_it()
+        self.assertEqual(s["likes"], 1)
+        self.assertIn("match snapshot failed", (runlog.home() / "app.log").read_text())
 
 
 class LoginTests(unittest.TestCase):
