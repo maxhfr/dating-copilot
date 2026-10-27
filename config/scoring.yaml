@@ -5,7 +5,7 @@
 # Auto-like at or above auto_like, pass below.
 
 thresholds:
-  auto_like: 58      # tune this after reading the first digest
+  auto_like: 65      # tune this after reading the first digest
 
 # ============================================================
 # PHOTO — 70 points

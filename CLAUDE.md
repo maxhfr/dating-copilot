@@ -33,7 +33,7 @@ Bot API.
 
 ```
 config/rubric.yaml    hard filters (age, distance, height, obese, min_photos)
-config/scoring.yaml   70 photo / 30 text weights, thresholds.auto_like = 58
+config/scoring.yaml   70 photo / 30 text weights, thresholds.auto_like = 65
 src/main.py           the swipe session (entry point)
 src/judge.py          3-stage evaluation (see below)
 src/notifier.py       Telegram digests / alerts

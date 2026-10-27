@@ -147,7 +147,7 @@ app, choose **Open**, and confirm. If macOS still refuses:
 
 ## Tuning
 
-`auto_like: 58` is a starting guess, not a calibrated number. Read the
+`auto_like: 65` is a starting guess, not a calibrated number. Read the
 first digest, see what scores it gave people you'd actually have liked,
 and move it. Too low and you burn 45 likes on mediocre matches; too high
 and you don't spend them.

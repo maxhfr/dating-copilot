@@ -100,7 +100,7 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual((s["age_min"], s["age_max"]), (26, 34))
         self.assertEqual(s["distance_km_max"], 20)
         self.assertEqual(s["height_max_cm"], 173)
-        self.assertEqual(s["auto_like"], 58)
+        self.assertEqual(s["auto_like"], 65)
 
     def test_write_updates_yaml_and_keeps_comments(self):
         before = self.sc.read_text()
