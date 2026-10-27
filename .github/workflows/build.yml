@@ -22,7 +22,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt
-      - name: Unit tests (offline: no browser, no API calls)
+      - name: "Unit tests (offline, no browser, no API calls)"
         run: |
           python test_parsers.py
           python test_session.py
@@ -41,9 +41,10 @@ jobs:
           - os: windows-latest
             name: windows
     runs-on: ${{ matrix.os }}
-    env:
-      DATING_COPILOT_HOME: ${{ runner.temp }}/dating-copilot-home
     steps:
+      - name: Use a throwaway app home for the smoke test
+        shell: bash
+        run: echo "DATING_COPILOT_HOME=$RUNNER_TEMP/dating-copilot-home" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
