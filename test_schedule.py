@@ -135,6 +135,98 @@ class SchedulerTests(Base):
         self.assertEqual(st["limits"]["max_sessions_per_day"], 4)
 
 
+class CatchUpTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.ctl = FakeController()
+        self.s = Schedule(self.ctl)
+        self.s.sched.start(paused=True)
+        self._orig = runlog.last_session_start
+
+    def tearDown(self):
+        runlog.last_session_start = self._orig
+        self.s.shutdown()
+        super().tearDown()
+
+    def test_job_may_run_late_after_sleep(self):
+        self.s.apply({"enabled": True, "times": ["09:17"], "jitter_minutes": 0})
+        job = self.s.sched.get_jobs()[0]
+        self.assertEqual(job.misfire_grace_time, 2 * 3600)
+        self.assertTrue(job.coalesce)
+
+    def test_floor_between_sessions_blocks_stacked_catch_ups(self):
+        import time as _t
+        runlog.last_session_start = lambda: _t.time() - 30 * 60       # 30 min ago
+        self.s._fire()
+        self.assertEqual(self.ctl.calls, [])
+        self.assertIn("min ago", self.s.last_fire)
+
+    def test_runs_when_last_session_was_long_ago(self):
+        import time as _t
+        runlog.last_session_start = lambda: _t.time() - 5 * 3600
+        self.s._fire()
+        self.assertEqual(len(self.ctl.calls), 1)
+
+    def test_runs_when_no_session_ever(self):
+        runlog.last_session_start = lambda: None
+        self.s._fire()
+        self.assertEqual(len(self.ctl.calls), 1)
+
+    def test_heartbeat_wakes_the_scheduler(self):
+        import scheduler as sch
+        calls = []
+        self.s.sched.wakeup = lambda: calls.append(1)
+        old = sch.HEARTBEAT_SECONDS
+        sch.HEARTBEAT_SECONDS = 0.05
+        try:
+            self.s.sched.start  # already started (paused)
+            import threading as _th
+            _th.Thread(target=self.s._heartbeat, daemon=True).start()
+            import time as _t
+            _t.sleep(0.4)
+        finally:
+            sch.HEARTBEAT_SECONDS = old
+            self.s._beat_stop.set()
+        self.assertGreaterEqual(len(calls), 2)
+
+
+class KeepAwakeTests(unittest.TestCase):
+    def test_noop_off_mac(self):
+        import keep_awake
+        from unittest import mock
+        with mock.patch.object(keep_awake.sys, "platform", "linux"):
+            k = keep_awake.KeepAwake()
+            self.assertFalse(k.set(True))
+
+    def test_spawns_caffeinate_on_mac_and_stops(self):
+        import keep_awake
+        from unittest import mock
+        proc = mock.Mock()
+        proc.poll.return_value = None
+        with mock.patch.object(keep_awake.sys, "platform", "darwin"), \
+                mock.patch.object(keep_awake.shutil, "which", return_value="/usr/bin/caffeinate"), \
+                mock.patch.object(keep_awake.subprocess, "Popen", return_value=proc) as popen:
+            k = keep_awake.KeepAwake()
+            self.assertTrue(k.set(True))
+            cmd = popen.call_args[0][0]
+            self.assertEqual(cmd[:2], ["/usr/bin/caffeinate", "-i"])
+            self.assertEqual(cmd[-2], "-w")
+            k.set(False)
+            proc.terminate.assert_called_once()
+            self.assertFalse(k.active)
+
+    def test_apply_toggles_keep_awake(self):
+        ctl = FakeController()
+        s = Schedule(ctl)
+        s.sched.start(paused=True)
+        seen = []
+        s.awake.set = lambda v: seen.append(v) or False
+        s.apply({"enabled": True, "times": ["09:17"], "jitter_minutes": 0})
+        s.apply({"enabled": False, "times": [], "jitter_minutes": 0})
+        s.shutdown()
+        self.assertEqual(seen[:2], [True, False])
+
+
 class RouteTests(Base):
     def setUp(self):
         super().setUp()

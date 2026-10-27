@@ -175,6 +175,7 @@
     <div class="card">
       <h2>Automatic sessions</h2>
       <p class="muted">Runs start by themselves at these times while this app is open. Scheduled runs keep the random skip and quiet hours. Limits protect the account: at most <span id="lim_n">4</span> a day, <span id="lim_g">3</span>+ hours apart.</p>
+      <p class="muted small">The Mac must be awake with the app open. While scheduling is on, the app keeps your Mac from sleeping on its own (the screen can still turn off; closing the lid still sleeps it). A time missed while asleep runs once, late, when the Mac wakes, never within 2 hours of another session.</p>
       <div class="grid">
         <label class="field"><span>Enabled</span><input type="checkbox" class="switch" id="sch_on"></label>
         <label class="field">Times (24h, comma separated)<input id="sch_times" type="text" placeholder="09:17, 13:42, 18:05"></label>
@@ -377,6 +378,8 @@ async function loadSchedule() {
   if (s.next_runs && s.next_runs.length) {
     s.next_runs.forEach(t => list.appendChild(el("li", "", "Next: " + new Date(t).toLocaleString())));
   } else { list.appendChild(el("li", "", s.enabled ? "No upcoming runs." : "Scheduling is off.")); }
+  if (s.enabled) list.appendChild(el("li", "", s.keeping_awake ? "Keeping this Mac awake while the app is open." : "Not keeping the Mac awake (macOS only)."));
+  if (s.last_fire) list.appendChild(el("li", "", "Last scheduled attempt: " + s.last_fire));
 }
 $("sch_save").onclick = async () => {
   const times = $("sch_times").value.split(",").map(t => t.trim()).filter(Boolean);

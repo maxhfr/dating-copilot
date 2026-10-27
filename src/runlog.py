@@ -108,6 +108,14 @@ def log_profile(session_id, platform, profile: dict, verdict: dict):
                         ensure_ascii=False)))
 
 
+@_safe(None)
+def last_session_start():
+    """Unix time the most recent session started, or None."""
+    with _db() as con:
+        row = con.execute("SELECT MAX(started_at) AS t FROM sessions").fetchone()
+    return row["t"] if row and row["t"] else None
+
+
 @_safe([])
 def recent(limit: int = 50) -> list[dict]:
     with _db() as con:

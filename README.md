@@ -115,8 +115,15 @@ threshold, session limits, quiet hours) and **Setup** (what is configured).
   then keychain, then `.env`.
 - **Schedule tab:** up to 4 sessions a day, at least 3 hours apart, none in
   quiet hours, with jitter. Scheduled runs keep the random skip. The app must
-  be open for them to run; to have macOS open it at login:
-  `python packaging/launch_agent.py install` (and `uninstall`).
+  be open and the Mac awake: while scheduling is on, the app stops the Mac
+  idling to sleep (screen may still turn off; a closed lid still sleeps it).
+  A time missed while asleep runs once, late, when the Mac wakes (within 2
+  hours, and never within 2 hours of another session). To have macOS open the
+  app at login: `python packaging/launch_agent.py install` (and `uninstall`).
+- **Why not a server or a Raspberry Pi?** The account is fragile and the
+  browser must stay headed on a home connection. A server or headless board
+  means a different device and network and is the riskiest way to run this.
+  A spare Mac that stays on at home is the safe always-on option.
 - Without `pywebview` the app opens in your browser instead.
 
 ## Packaging a Mac app
