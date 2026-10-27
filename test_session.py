@@ -12,6 +12,7 @@ import sys
 import tempfile
 import threading
 import time
+import types
 import unittest
 
 sys.path.insert(0, "src")
@@ -88,16 +89,16 @@ class SessionTests(unittest.TestCase):
         self._patches = [
             (main, "get_platform", main.get_platform),
             (main, "judge", main.judge),
-            (main, "session_digest", main.session_digest),
-            (main, "alert", main.alert),
+            (main, "notifier", main.notifier),
             (main, "HOLD_ON_STOP", main.HOLD_ON_STOP),
             (main, "DIGEST_EVERY", main.DIGEST_EVERY),
         ]
         main.get_platform = lambda name: FakePlatform
         main.judge = FakeJudge
         self.digests, self.alerts = [], []
-        main.session_digest = lambda **kw: self.digests.append(kw)
-        main.alert = lambda text: self.alerts.append(text)
+        main.notifier = types.SimpleNamespace(
+            session_digest=lambda **kw: self.digests.append(kw),
+            alert=lambda text: self.alerts.append(text))
         main.HOLD_ON_STOP = False
         main.DIGEST_EVERY = 0
         runlog_db = runlog.home() / "runlog.db"
@@ -204,11 +205,10 @@ class ControllerTests(unittest.TestCase):
     def test_start_stop_roundtrip(self):
         FakePlatform.script = [prof(i, "Lo") for i in range(10000)]
         FakePlatform.delay = 0.05      # slow enough to still be running below
-        orig = (main.get_platform, main.judge, main.HOLD_ON_STOP,
-                main.session_digest, main.alert)
+        orig = (main.get_platform, main.judge, main.HOLD_ON_STOP, main.notifier)
         main.get_platform = lambda name: FakePlatform
-        main.session_digest = lambda **kw: None
-        main.alert = lambda text: None
+        main.notifier = types.SimpleNamespace(
+            session_digest=lambda **kw: None, alert=lambda text: None)
         main.HOLD_ON_STOP = False
         import controller as ctl
         real_reload = ctl.importlib.reload
@@ -232,7 +232,7 @@ class ControllerTests(unittest.TestCase):
             ctl.importlib.reload = real_reload
             FakePlatform.delay = 0
             (main.get_platform, main.judge, main.HOLD_ON_STOP,
-             main.session_digest, main.alert) = orig
+             main.notifier) = orig
 
 
 if __name__ == "__main__":

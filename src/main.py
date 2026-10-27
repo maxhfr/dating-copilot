@@ -17,8 +17,8 @@ import sys
 from datetime import datetime
 
 import judge
+import notifier
 import runlog
-from notifier import session_digest, alert
 from platforms import get_platform
 
 # Defaults, read from the environment at import. run_session() accepts
@@ -164,7 +164,7 @@ async def run_session(platform: str = "tinder", on_profile=None, on_status=None,
 
                 # Interim digest so you're not waiting for the whole run.
                 if DIGEST_EVERY and reviewed % DIGEST_EVERY == 0:
-                    session_digest(reviewed=reviewed, likes=likes,
+                    notifier.session_digest(reviewed=reviewed, likes=likes,
                                    vision_calls=vision_calls,
                                    liked=liked_log[last_reported:],
                                    partial=True)
@@ -183,10 +183,11 @@ async def run_session(platform: str = "tinder", on_profile=None, on_status=None,
         stopped = f"{type(e).__name__}: {e}"
 
     if stopped and not stopped.startswith(QUIET_STOPS):
-        alert(f"Session stopped: {stopped}")
+        notifier.alert(f"Session stopped: {stopped}")
 
-    session_digest(reviewed=reviewed, likes=likes,
-                   vision_calls=vision_calls, liked=liked_log, stopped=stopped)
+    notifier.session_digest(reviewed=reviewed, likes=likes,
+                            vision_calls=vision_calls, liked=liked_log,
+                            stopped=stopped)
     runlog.end_session(session_id, reviewed, likes, vision_calls, stopped)
     say(f"Done. {reviewed} reviewed, {likes} likes, "
         f"{vision_calls} vision calls. Stopped: {stopped}")

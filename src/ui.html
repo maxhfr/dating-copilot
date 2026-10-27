@@ -79,7 +79,10 @@
     <div class="row"><button class="secondary" id="login">Log in to Tinder</button>
       <span class="muted">Opens the browser window. Log in by hand; it closes itself and remembers you.</span></div>
     <div class="log" id="loginlog" style="display:none"></div>
-    <p class="muted">API keys are read from <code>.env</code> in the project folder.</p>
+    <h3>API keys</h3>
+    <p class="muted" id="kcnote"></p>
+    <div class="grid" id="secrets"></div>
+    <span class="msg" id="kmsg"></span>
   </section>
 </main>
 <script>
@@ -153,10 +156,33 @@ $("login").onclick = async () => {
   $("loginlog").style.display = "block";
   $("loginlog").textContent = r.ok ? "Browser opening..." : "A session or login is already running.";
 };
+const SECRETS = [["ANTHROPIC_API_KEY","Anthropic API key","password"],
+  ["TELEGRAM_BOT_TOKEN","Telegram bot token (optional)","password"],
+  ["TELEGRAM_CHAT_ID","Telegram chat id (optional)","text"]];
+function buildSecrets() {
+  $("secrets").textContent = "";
+  SECRETS.forEach(([name, label, type]) => {
+    const l = document.createElement("label"); l.textContent = label;
+    const i = document.createElement("input"); i.type = type; i.autocomplete = "off"; i.style.width = "260px"; i.placeholder = "paste to replace";
+    const row = document.createElement("div"); row.className = "row";
+    const save = document.createElement("button"); save.className = "secondary"; save.textContent = "Save";
+    const clear = document.createElement("button"); clear.className = "secondary"; clear.textContent = "Clear";
+    const send = async (value) => {
+      const r = await api("/api/secrets", {name, value});
+      $("kmsg").style.color = r.ok ? "var(--ok)" : "var(--bad)";
+      $("kmsg").textContent = r.ok ? "Saved." : (r.data.error || "Could not save");
+      i.value = ""; loadSetup();
+    };
+    save.onclick = () => send(i.value); clear.onclick = () => send("");
+    row.append(i, save, clear); l.appendChild(row); $("secrets").appendChild(l);
+  });
+}
 async function loadSetup() {
+  if (!$("secrets").children.length) buildSecrets();
   const st = (await api("/api/status")).data;
   if (st.running && st.messages.length) { $("loginlog").style.display = "block"; $("loginlog").textContent = st.messages.join("\n"); }
   const s = (await api("/api/setup")).data; $("checks").textContent = "";
+  $("kcnote").textContent = s.keychain ? "Keys are stored in your system keychain and never shown again." : "No keychain available here: put keys in .env in the project folder.";
   [["Anthropic API key", s.anthropic_key], ["Telegram (optional)", s.telegram],
    ["Tinder session saved", s.tinder_session], [".env file present", s.env_file]].forEach(([t, ok]) => {
     const li = document.createElement("li"); li.textContent = (ok ? "OK  " : "--  ") + t; $("checks").appendChild(li); });

@@ -11,6 +11,7 @@ import threading
 from collections import deque
 
 import judge
+import notifier
 import main as session_main
 
 
@@ -40,6 +41,7 @@ class SessionController:
                 return False
             # Pick up config edits (rubric / threshold) made since import.
             importlib.reload(judge)
+            importlib.reload(notifier)   # Telegram settings are read at import
             self._stop.clear()
             self.messages.clear()
             self.state = "running"

@@ -17,6 +17,33 @@ os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-test")
 _HOME = tempfile.TemporaryDirectory()
 os.environ["DATING_COPILOT_HOME"] = _HOME.name
 
+import keyring  # noqa: E402
+import keyring.backend  # noqa: E402
+import keyring.errors  # noqa: E402
+
+
+class MemoryKeyring(keyring.backend.KeyringBackend):
+    priority = 1
+
+    def __init__(self):
+        super().__init__()
+        self.d = {}
+
+    def set_password(self, service, user, password):
+        self.d[(service, user)] = password
+
+    def get_password(self, service, user):
+        return self.d.get((service, user))
+
+    def delete_password(self, service, user):
+        if (service, user) not in self.d:
+            raise keyring.errors.PasswordDeleteError("absent")
+        del self.d[(service, user)]
+
+
+keyring.set_keyring(MemoryKeyring())
+
+import secrets_store  # noqa: E402
 import settings  # noqa: E402
 import runlog  # noqa: E402
 from app import create_app  # noqa: E402
@@ -171,7 +198,46 @@ class AppTests(unittest.TestCase):
 
     def test_setup_endpoint(self):
         r = self.c.get("/api/setup", base_url=self.base).get_json()
-        self.assertEqual(set(r), {"anthropic_key", "telegram", "tinder_session", "env_file"})
+        self.assertEqual(set(r), {"keychain", "anthropic_key", "telegram",
+                                  "tinder_session", "env_file"})
+
+    GOOD_KEY = "sk-ant-api03-" + "a" * 30
+    GOOD_TOKEN = "123456789:" + "A" * 35
+
+    def test_secret_saved_to_keychain_and_never_returned(self):
+        r = self.post("/api/secrets", {"name": "ANTHROPIC_API_KEY", "value": self.GOOD_KEY})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(secrets_store.get("ANTHROPIC_API_KEY"), self.GOOD_KEY)
+        for path in ("/api/setup", "/api/settings", "/api/status"):
+            body = self.c.get(path, base_url=self.base).get_data(as_text=True)
+            self.assertNotIn(self.GOOD_KEY, body)
+        self.assertNotIn(self.GOOD_KEY, r.get_data(as_text=True))
+
+    def test_secret_validation_and_clear(self):
+        bad = self.post("/api/secrets", {"name": "TELEGRAM_BOT_TOKEN", "value": "nope"})
+        self.assertEqual(bad.status_code, 400)
+        self.assertEqual(self.post("/api/secrets", {"name": "X", "value": "1"}).status_code, 400)
+        self.post("/api/secrets", {"name": "TELEGRAM_BOT_TOKEN", "value": self.GOOD_TOKEN})
+        self.assertEqual(secrets_store.get("TELEGRAM_BOT_TOKEN"), self.GOOD_TOKEN)
+        self.post("/api/secrets", {"name": "TELEGRAM_BOT_TOKEN", "value": ""})
+        self.assertIsNone(secrets_store.get("TELEGRAM_BOT_TOKEN"))
+
+    def test_secrets_need_token_and_stopped_session(self):
+        self.assertEqual(self.post("/api/secrets", {"name": "ANTHROPIC_API_KEY",
+                         "value": self.GOOD_KEY}, token=False).status_code, 403)
+        self.ctl.running = True
+        self.assertEqual(self.post("/api/secrets", {"name": "ANTHROPIC_API_KEY",
+                         "value": self.GOOD_KEY}).status_code, 409)
+
+    def test_load_into_env_prefers_existing_env(self):
+        secrets_store.set("TELEGRAM_CHAT_ID", "987654321")
+        os.environ["TELEGRAM_CHAT_ID"] = "111111111"
+        secrets_store.load_into_env()
+        self.assertEqual(os.environ["TELEGRAM_CHAT_ID"], "111111111")
+        os.environ.pop("TELEGRAM_CHAT_ID")
+        secrets_store.load_into_env()
+        self.assertEqual(os.environ["TELEGRAM_CHAT_ID"], "987654321")
+        os.environ.pop("TELEGRAM_CHAT_ID")
 
 
 if __name__ == "__main__":

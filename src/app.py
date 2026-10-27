@@ -12,6 +12,7 @@ from pathlib import Path
 from flask import Flask, jsonify, request, abort, Response
 
 import runlog
+import secrets_store
 import settings
 from controller import SessionController
 
@@ -76,9 +77,26 @@ def create_app(controller: SessionController | None = None) -> Flask:
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
 
+    @app.post("/api/secrets")
+    def post_secret():
+        """Save (or clear, with an empty value) one secret. Write-only: no
+        endpoint ever returns a stored value."""
+        if ctl.is_running():
+            return jsonify({"error": "stop the session before changing keys"}), 409
+        body = request.get_json(force=True) or {}
+        name, value = body.get("name", ""), str(body.get("value", ""))
+        if name not in secrets_store.NAMES:
+            return jsonify({"error": "unknown secret"}), 400
+        err = (secrets_store.delete(name) if value.strip() == ""
+               else secrets_store.set(name, value))
+        if err:
+            return jsonify({"error": err}), 400
+        return jsonify({"ok": True})
+
     @app.get("/api/setup")
     def setup():
         return jsonify({
+            "keychain": secrets_store.available(),
             "anthropic_key": os.environ.get("ANTHROPIC_API_KEY", "").startswith("sk-ant-"),
             "telegram": bool(os.environ.get("TELEGRAM_BOT_TOKEN")
                              and os.environ.get("TELEGRAM_CHAT_ID")),

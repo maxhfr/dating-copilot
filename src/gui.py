@@ -33,6 +33,8 @@ def free_port() -> int:
 
 
 def main():
+    import secrets_store
+    secrets_store.load_into_env()      # shell > keychain > .env
     load_env()
     if not os.environ.get("ANTHROPIC_API_KEY"):
         print("ANTHROPIC_API_KEY is not set (put it in .env). Starting anyway; "
