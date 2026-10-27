@@ -152,6 +152,42 @@ app, choose **Open**, and confirm. If macOS still refuses:
   (it serves the UI and seeds its config); the macOS `.app` bundle itself has
   not been built yet.
 
+## Install on a Mac (no warning)
+
+Paste this in Terminal. It downloads the latest release, puts the app in
+Applications and opens it:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/maxhfr/dating-copilot/main/install_mac.sh | bash
+```
+
+Why it works: a file fetched with `curl` is not flagged as "downloaded from the
+internet", so macOS does not show "Apple could not verify...". Your data
+(`~/.dating-copilot`, the keychain) is never touched. Run it again to update.
+`DATING_COPILOT_VERSION=v0.2.0` installs a specific version.
+
+If you download the zip in a browser instead and macOS blocks it: System Settings
+> Privacy & Security > **Open Anyway**, or
+`xattr -dr com.apple.quarantine "Dating Copilot.app"`.
+
+### Signing the Mac app (removes the warning for everyone)
+
+With an Apple Developer account the build can sign and notarize the app
+automatically. Add these **repository secrets** (GitHub > Settings > Secrets and
+variables > Actions); without them the build stays unsigned:
+
+| Secret | What it is |
+|---|---|
+| `MACOS_CERTIFICATE` | your "Developer ID Application" certificate exported as a `.p12`, then base64 encoded (`base64 -i cert.p12 \| pbcopy`) |
+| `MACOS_CERTIFICATE_PWD` | the password you chose when exporting the `.p12` |
+| `APPLE_ID` | your Apple ID email |
+| `APPLE_APP_PASSWORD` | an app-specific password (appleid.apple.com > Sign-In and Security) |
+| `APPLE_TEAM_ID` | your 10-character Team ID (developer.apple.com > Membership) |
+
+The workflow signs every binary with the hardened runtime
+(`packaging/mac_entitlements.plist`), notarizes with Apple, staples the ticket and
+checks `spctl`. A notarization failure is shown as an annotation on the run.
+
 ## Download
 
 The latest apps are on the repository's **Releases** page (right-hand side of the
