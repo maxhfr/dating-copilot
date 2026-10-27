@@ -198,7 +198,7 @@ class AppTests(unittest.TestCase):
 
     def test_setup_endpoint(self):
         r = self.c.get("/api/setup", base_url=self.base).get_json()
-        self.assertEqual(set(r), {"keychain", "anthropic_key", "telegram",
+        self.assertEqual(set(r), {"keychain", "anthropic_key", "telegram", "chromium",
                                   "tinder_session", "env_file"})
 
     GOOD_KEY = "sk-ant-api03-" + "a" * 30

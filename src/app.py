@@ -11,6 +11,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, abort, Response
 
+import browser_setup
 import runlog
 import secrets_store
 import settings
@@ -119,6 +120,7 @@ def create_app(controller: SessionController | None = None,
             "anthropic_key": os.environ.get("ANTHROPIC_API_KEY", "").startswith("sk-ant-"),
             "telegram": bool(os.environ.get("TELEGRAM_BOT_TOKEN")
                              and os.environ.get("TELEGRAM_CHAT_ID")),
+            "chromium": browser_setup.chromium_installed(),
             "tinder_session": (runlog.home() / "tinder-session").exists(),
             "env_file": (ROOT / ".env").exists(),
         })

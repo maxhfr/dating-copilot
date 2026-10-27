@@ -16,14 +16,15 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def load_env():
-    f = ROOT / ".env"
-    if not f.exists():
-        return
-    for line in f.read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            k, v = line.split("=", 1)
-            os.environ.setdefault(k.strip(), v.strip())
+    import runlog
+    for f in (runlog.home() / ".env", ROOT / ".env"):
+        if not f.exists():
+            continue
+        for line in f.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
 
 
 def free_port() -> int:
@@ -33,7 +34,11 @@ def free_port() -> int:
 
 
 def main():
+    import runlog
     import secrets_store
+    if getattr(sys, "frozen", False):
+        runlog.home().mkdir(parents=True, exist_ok=True)
+        os.chdir(runlog.home())        # debug_nocard.* etc. land here
     secrets_store.load_into_env()      # shell > keychain > .env
     load_env()
     if not os.environ.get("ANTHROPIC_API_KEY"):
@@ -53,18 +58,26 @@ def main():
                                             debug=False, use_reloader=False),
                      daemon=True).start()
     url = f"http://127.0.0.1:{port}/"
+
+    import browser_setup
+    if not browser_setup.chromium_installed():
+        threading.Thread(target=browser_setup.install_chromium,
+                         kwargs={"on_status": ctl.messages.append},
+                         daemon=True).start()
+
     try:
-        import webview
-        webview.create_window("Dating Copilot", url, width=980, height=720)
-        webview.start()
-    except ImportError:
-        print(f"pywebview not installed; opening {url} in your browser. "
-              "Press Ctrl+C here to quit.")
-        webbrowser.open(url)
         try:
-            threading.Event().wait()
-        except KeyboardInterrupt:
-            pass
+            import webview
+            webview.create_window("Dating Copilot", url, width=980, height=720)
+            webview.start()
+        except Exception as e:      # not installed, or no GUI toolkit
+            print(f"No native window ({type(e).__name__}); opening {url} in "
+                  "your browser. Press Ctrl+C here to quit.")
+            webbrowser.open(url)
+            try:
+                threading.Event().wait()
+            except KeyboardInterrupt:
+                pass
     finally:
         schedule.shutdown()
 

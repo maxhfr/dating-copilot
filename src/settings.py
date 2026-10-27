@@ -8,13 +8,12 @@ Scoring WEIGHTS are deliberately not editable here, only the like threshold.
 import json
 import re
 import yaml
-from pathlib import Path
 
 import runlog
+from paths import config_dir
 
-ROOT = Path(__file__).resolve().parent.parent
-RUBRIC = ROOT / "config" / "rubric.yaml"
-SCORING = ROOT / "config" / "scoring.yaml"
+RUBRIC = config_dir() / "rubric.yaml"
+SCORING = config_dir() / "scoring.yaml"
 
 # Safety ceilings: the app will not raise swipe volume past these.
 LIMITS = {"max_likes": (1, 100), "max_profiles": (10, 500)}

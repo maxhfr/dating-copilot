@@ -63,6 +63,7 @@ python test_parsers.py     # page-text parsers, platform registry
 python test_session.py     # swipe loop, run log, stop/start (fake platform)
 python test_app.py         # settings, keys and the local web app
 python test_schedule.py    # schedule limits, scheduler, login agent
+python test_packaging.py   # paths and browser-setup helpers
 ```
 
 ## Running
@@ -117,6 +118,24 @@ threshold, session limits, quiet hours) and **Setup** (what is configured).
   be open for them to run; to have macOS open it at login:
   `python packaging/launch_agent.py install` (and `uninstall`).
 - Without `pywebview` the app opens in your browser instead.
+
+## Packaging a Mac app
+
+```bash
+./packaging/build_mac.sh
+```
+
+Builds `dist/Dating Copilot.app` with PyInstaller (run it on the Mac you will
+use it on). It is unsigned, which is fine for personal use: right-click the
+app, choose **Open**, and confirm. If macOS still refuses:
+`xattr -dr com.apple.quarantine "dist/Dating Copilot.app"`.
+
+- Chromium is not bundled; the app downloads it on first launch (~190 MB).
+- Inside the app, the editable config is copied to `~/.dating-copilot/config/`
+  on first launch, and `.env` can live in `~/.dating-copilot/.env`.
+- The spec is `packaging/dating-copilot.spec`. The build was verified on Linux
+  (it serves the UI and seeds its config); the macOS `.app` bundle itself has
+  not been built yet.
 
 ## Tuning
 

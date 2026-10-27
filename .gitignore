@@ -11,3 +11,6 @@ dom_dump*
 state/
 sessions/
 profile-*.txt
+.build-venv/
+build/
+dist/
