@@ -331,6 +331,49 @@ class DiagnoseNoCard(unittest.TestCase):
         self.assertTrue(self._diagnose("Matchs\nMessages\n").startswith("no card found"))
 
 
+class AnonymiseTool(unittest.TestCase):
+    def setUp(self):
+        sys.path.insert(0, "tools")
+        import anonymise_captures as tool
+        self.tool = tool
+
+    def test_open_panel_name_and_sidebar_removed(self):
+        body = ("Passer au contenu principal\nMatchs\nMessages\n12\n12\u00a0Likes\n"
+                "Marine\nClara\nPar activité récente\nZoe27\nRetour\nJe recherche\n"
+                "Relation sérieuse\nÀ propos de Zoe, insta @zoe_photo\nBloquer Zoe\n")
+        out = self.tool.anonymise(body)
+        for private in ("Marine", "Clara", "Zoe", "zoe_photo"):
+            self.assertNotIn(private, out)
+        self.assertIn("Alex27", out)
+        self.assertIn("Bloquer Alex", out)
+        self.assertIn("12\u00a0Likes", out)
+        self.assertIn("Relation sérieuse", out)          # structure kept
+        self.assertEqual(_parse_name_age(out), ("Alex", 27))   # still parses
+
+    def test_closed_card_name_replaced(self):
+        body = ("Matchs\nMessages\nMarine\nPar activité récente\nZoe\n29\n"
+                "Ouvrir le profil\nà 3 kilomètres\n")
+        out = self.tool.anonymise(body)
+        self.assertNotIn("Zoe", out)
+        self.assertNotIn("Marine", out)
+        self.assertIn("Ouvrir le profil", out)
+
+    def test_phone_and_links_redacted(self):
+        out = self.tool.anonymise("Zoe27\nappelle 06 12 34 56 78 ou https://x.io/zoe\nBloquer Zoe")
+        self.assertNotIn("06 12", out)
+        self.assertNotIn("https", out)
+
+    def test_one_letter_name_line(self):
+        out = self.tool.anonymise("Matchs\nMessages\nJ28\nRetour\nBloquer J\n")
+        self.assertIn("Alex28", out)
+
+    def test_pick_prefers_variety(self):
+        f = self.tool.features
+        a = f("Zoe27\nRetour\nBloquer Zoe\n170 cm\nà 4 kilomètres\nQ ?\nrep")
+        b = f("Matchs\nMessages\nOuvrir le profil")
+        self.assertEqual(self.tool.pick([a, a, b]), [0, 2])
+
+
 class PlatformRegistry(unittest.TestCase):
     def test_tinder_registered(self):
         from platforms import get_platform
