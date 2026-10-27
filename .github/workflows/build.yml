@@ -3,14 +3,25 @@ name: build
 # Builds the Mac app and the Windows app on GitHub's servers and smoke-tests
 # them. Run it by hand (Actions tab > build > Run workflow), push a tag like
 # v0.1.0, or change packaging files on the working branch.
+#
+# To publish a download page (Releases) with both apps: Run workflow and type a
+# version such as v0.1.0 in "release_tag" (or push a tag starting with v).
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Publish a GitHub Release with this tag (e.g. v0.1.0). Leave empty for a plain build."
+        required: false
+        default: ""
   push:
     tags: ["v*"]
     branches: [phase1-platform-interface]
     paths:
       - ".github/workflows/build.yml"
       - "packaging/**"
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -84,3 +95,32 @@ jobs:
           name: DatingCopilot-${{ matrix.name }}
           path: DatingCopilot-*.zip
           if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_tag != ''
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: zips
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
+        run: |
+          cat > notes.md <<'NOTES'
+          Unsigned apps for personal use.
+
+          **Mac (Apple Silicon):** download `DatingCopilot-mac.zip`, unzip it, then right-click the app and choose Open. If macOS says it is damaged, run `xattr -dr com.apple.quarantine "Dating Copilot.app"`.
+
+          **Windows:** download `DatingCopilot-windows.zip`, unzip it and run `dating-copilot.exe`. If Windows says it protected your PC, click More info, then Run anyway.
+
+          On first launch the app downloads its browser (about 190 MB). Log into Tinder and add your Anthropic key in the Setup tab.
+          NOTES
+          gh release create "$TAG" zips/*.zip \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Dating Copilot $TAG" --notes-file notes.md --generate-notes
