@@ -274,6 +274,48 @@ class Capture(unittest.TestCase):
         self.cap.save_capture("x")  # must not raise
 
 
+class SnapshotMatches(unittest.TestCase):
+    """The sidebar reader is passive: it only reads anchors, never clicks."""
+
+    class FakeLink:
+        def __init__(self, href, text):
+            self.href, self.text = href, text
+
+        async def get_attribute(self, _):
+            return self.href
+
+        async def inner_text(self):
+            return self.text
+
+    def _tinder(self, links, boom=False):
+        import asyncio
+        from types import SimpleNamespace
+        from platforms.tinder import Tinder
+
+        async def query_selector_all(_):
+            if boom:
+                raise RuntimeError("page closed")
+            return links
+
+        t = Tinder()
+        t.page = SimpleNamespace(query_selector_all=query_selector_all)
+        return asyncio.run(t.snapshot_matches())
+
+    def test_reads_ids_and_first_names(self):
+        L = self.FakeLink
+        out = self._tinder([L("/app/messages/abc123", "Marine\n22 ans"),
+                            L("/app/messages/def456", "Clara"),
+                            L("/app/profile", "ignored")])
+        self.assertEqual(out, [{"id": "abc123", "name": "Marine"},
+                               {"id": "def456", "name": "Clara"}])
+
+    def test_returns_none_when_the_page_cannot_be_read(self):
+        self.assertIsNone(self._tinder([], boom=True))
+
+    def test_empty_sidebar_is_an_empty_list(self):
+        self.assertEqual(self._tinder([]), [])
+
+
 class PanelOpen(unittest.TestCase):
     def test_open_when_bloquer_line_present(self):
         self.assertTrue(_panel_open(MORGAN_PROFILE))

@@ -81,7 +81,7 @@ def create_app(controller: SessionController | None = None,
 
     @app.get("/api/stats")
     def stats():
-        return jsonify(runlog.stats())
+        return jsonify({**runlog.stats(), "conversion": runlog.conversion_stats()})
 
     @app.get("/api/settings")
     def get_settings():

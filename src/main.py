@@ -42,6 +42,25 @@ QUIET_HOURS = range(1, 8)   # no sessions 01:00-07:59 Paris
 QUIET_STOPS = ("no card found", "out of likes", "stopped by you")
 
 
+async def _snapshot_matches(t, platform: str, say):
+    """Note the matches visible now (baseline on the very first call). Never
+    allowed to break a session."""
+    try:
+        entries = await t.snapshot_matches()
+        if entries is None:
+            runlog.log_line("match snapshot unavailable")
+            return
+        res = runlog.record_match_snapshot(platform, entries)
+        if res is None:
+            return
+        if res["baseline"]:
+            say(f"  (match tracking started: {res['seen']} existing matches noted)")
+        elif res["new"]:
+            say(f"  ({res['new']} new match{'es' if res['new'] > 1 else ''})")
+    except Exception as e:
+        runlog.log_line(f"match snapshot failed: {type(e).__name__}: {e}")
+
+
 async def run_session(platform: str = "tinder", on_profile=None, on_status=None,
                       stop_event=None, manual: bool = False,
                       max_likes: int | None = None,
@@ -89,6 +108,7 @@ async def run_session(platform: str = "tinder", on_profile=None, on_status=None,
     try:
         async with get_platform(platform)(headless=False) as t:
             await t.ensure_logged_in(wait_for_login=wait_for_login)
+            await _snapshot_matches(t, platform, say)    # baseline / catch-up
 
             while likes < like_cap and reviewed < profile_cap:
                 if stop_event is not None and stop_event.is_set():
@@ -174,6 +194,11 @@ async def run_session(platform: str = "tinder", on_profile=None, on_status=None,
                 # Break the rhythm every so often.
                 if random.random() < 0.12:
                     await t.idle()
+
+            # Matches that appeared during this session. Skip on a challenge
+            # or ban screen: we do nothing there but stop.
+            if not (stopped or "").startswith(("challenge", "account banned")):
+                await _snapshot_matches(t, platform, say)
     except asyncio.CancelledError:
         # The app cancelled the task to stop the session. The browser is
         # closed by the context manager; fall through to the summary.

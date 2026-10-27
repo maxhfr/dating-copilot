@@ -202,6 +202,9 @@ class AppTests(unittest.TestCase):
         self.assertEqual(self.c.get("/api/feed", base_url=self.base).status_code, 200)
         r = self.c.get("/api/stats", base_url=self.base).get_json()
         self.assertIn("histogram", r)
+        conv = r["conversion"]
+        self.assertEqual({"tracking", "since", "likes", "matches", "rate", "last7", "bands",
+                          "last_snapshot_at", "visible_matches"}, set(conv))
 
     def test_setup_endpoint(self):
         r = self.c.get("/api/setup", base_url=self.base).get_json()

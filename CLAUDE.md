@@ -99,6 +99,9 @@ and the native window still need a first run on Max's Mac. Messaging code is
 archived in `_archive/messaging/`. A Windows build exists (spec, `run.bat`,
 GitHub Actions workflow in `.github/workflows/build.yml` producing the Mac and
 Windows zips); it is CI-verified but not yet tried on a real Windows PC.
+The Run and Calibration tabs show a like-to-match conversion KPI (passive sidebar
+snapshots at session start/end, see README); the sidebar reader still needs its
+first live confirmation on Max's Mac.
 Phase 5 (Hinge, Bumble) has not started.
 
 Build in this order. Stop and check with Max after each phase.

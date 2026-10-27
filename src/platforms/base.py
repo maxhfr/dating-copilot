@@ -52,6 +52,12 @@ class Platform(ABC):
         last_active_days. None if no readable card.
         """
 
+    async def snapshot_matches(self) -> list[dict] | None:
+        """Matches visible right now, as [{"id": ..., "name": ...}], read
+        passively (no clicks, no navigation). None means "not available";
+        platforms without match tracking just keep this default."""
+        return None
+
     @abstractmethod
     async def swipe(self, like: bool):
         """Like (True) or pass (False) the current card."""

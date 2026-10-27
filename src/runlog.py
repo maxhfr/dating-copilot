@@ -9,6 +9,7 @@ import json
 import os
 import sqlite3
 import time
+import unicodedata
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -21,6 +22,12 @@ CREATE TABLE IF NOT EXISTS profiles (
     id INTEGER PRIMARY KEY, session_id INTEGER, ts REAL, platform TEXT,
     name TEXT, age INTEGER, distance_km INTEGER, score INTEGER, stage INTEGER,
     decision TEXT, why TEXT, hooks TEXT, breakdown TEXT);
+CREATE TABLE IF NOT EXISTS matches (
+    id TEXT PRIMARY KEY, platform TEXT, name TEXT, first_seen REAL,
+    baseline INTEGER DEFAULT 0, profile_id INTEGER);
+CREATE TABLE IF NOT EXISTS tracking (
+    platform TEXT PRIMARY KEY, started_at REAL,
+    last_snapshot_at REAL, last_seen_count INTEGER);
 """
 
 
@@ -114,6 +121,125 @@ def last_session_start():
     with _db() as con:
         row = con.execute("SELECT MAX(started_at) AS t FROM sessions").fetchone()
     return row["t"] if row and row["t"] else None
+
+
+def _norm(name) -> str:
+    """Accent- and case-insensitive form of a first name, for matching."""
+    s = unicodedata.normalize("NFKD", str(name or "")).encode("ascii", "ignore").decode()
+    return "".join(c for c in s.lower() if c.isalnum())
+
+
+ATTRIBUTION_WINDOW = 30 * 86400   # a match is credited to a like from the last 30 days
+
+
+def _attribute(con, platform: str, name: str, now: float):
+    """Most recent unmatched liked profile with the same first name, or None.
+    Approximate on purpose: the match list only gives a first name."""
+    rows = con.execute(
+        "SELECT id, name FROM profiles WHERE platform=? AND decision='like' "
+        "AND ts<=? AND ts>=? AND id NOT IN "
+        "(SELECT profile_id FROM matches WHERE profile_id IS NOT NULL) "
+        "ORDER BY ts DESC", (platform, now, now - ATTRIBUTION_WINDOW)).fetchall()
+    want = _norm(name)
+    for row in rows:
+        if want and _norm(row["name"]) == want:
+            return row["id"]
+    return None
+
+
+@_safe(None)
+def record_match_snapshot(platform: str, entries: list[dict]):
+    """Record the match ids visible right now.
+
+    The first snapshot for a platform is a baseline: the matches that already
+    exist are noted but never counted. Later snapshots count each unseen id
+    once. Returns {"baseline": bool, "new": int, "seen": int}.
+    """
+    now = time.time()
+    with _db() as con:
+        started = con.execute("SELECT started_at FROM tracking WHERE platform=?",
+                              (platform,)).fetchone()
+        baseline = started is None
+        known = {r["id"] for r in con.execute(
+            "SELECT id FROM matches WHERE platform=?", (platform,))}
+        new = 0
+        for e in entries or []:
+            mid = str(e.get("id") or "").strip()
+            if not mid or mid in known:
+                continue
+            known.add(mid)
+            name = e.get("name") or ""
+            if baseline:
+                con.execute("INSERT INTO matches (id, platform, name, first_seen, baseline) "
+                            "VALUES (?,?,?,?,1)", (mid, platform, name, now))
+            else:
+                con.execute("INSERT INTO matches (id, platform, name, first_seen, baseline, "
+                            "profile_id) VALUES (?,?,?,?,0,?)",
+                            (mid, platform, name, now, _attribute(con, platform, name, now)))
+                new += 1
+        if baseline:
+            con.execute("INSERT INTO tracking (platform, started_at, last_snapshot_at, "
+                        "last_seen_count) VALUES (?,?,?,?)",
+                        (platform, now, now, len(entries or [])))
+        else:
+            con.execute("UPDATE tracking SET last_snapshot_at=?, last_seen_count=? "
+                        "WHERE platform=?", (now, len(entries or []), platform))
+    return {"baseline": baseline, "new": new, "seen": len(entries or [])}
+
+
+def _empty_conversion() -> dict:
+    return {"tracking": False, "since": None, "likes": 0, "matches": 0, "rate": None,
+            "last7": {"likes": 0, "matches": 0, "rate": None}, "bands": [],
+            "last_snapshot_at": None, "visible_matches": None}
+
+
+def _rate(matches: int, likes: int):
+    return round(matches / likes, 3) if likes else None
+
+
+@_safe(_empty_conversion())
+def conversion_stats(platform: str = "tinder", bucket: int = 10) -> dict:
+    """Like -> match conversion since match tracking began.
+
+    rate = new matches / likes sent since tracking began. Matches that arrive
+    after a session are added at the next snapshot, so recent numbers lag.
+    Per-band figures use the approximate first-name attribution.
+    """
+    now = time.time()
+    with _db() as con:
+        t = con.execute("SELECT * FROM tracking WHERE platform=?", (platform,)).fetchone()
+        if t is None:
+            return _empty_conversion()
+        since = t["started_at"]
+        likes = con.execute("SELECT COUNT(*) AS n FROM profiles WHERE platform=? AND "
+                            "decision='like' AND ts>=?", (platform, since)).fetchone()["n"]
+        matches = con.execute("SELECT COUNT(*) AS n FROM matches WHERE platform=? AND "
+                              "baseline=0", (platform,)).fetchone()["n"]
+        week = max(since, now - 7 * 86400)
+        likes7 = con.execute("SELECT COUNT(*) AS n FROM profiles WHERE platform=? AND "
+                             "decision='like' AND ts>=?", (platform, week)).fetchone()["n"]
+        matches7 = con.execute("SELECT COUNT(*) AS n FROM matches WHERE platform=? AND "
+                               "baseline=0 AND first_seen>=?", (platform, week)).fetchone()["n"]
+        liked = con.execute("SELECT id, score FROM profiles WHERE platform=? AND "
+                            "decision='like' AND ts>=? AND score IS NOT NULL",
+                            (platform, since)).fetchall()
+        matched_ids = {r["profile_id"] for r in con.execute(
+            "SELECT profile_id FROM matches WHERE platform=? AND baseline=0 AND "
+            "profile_id IS NOT NULL", (platform,))}
+    bands = {}
+    for row in liked:
+        lo = min(row["score"] // bucket * bucket, 100 - bucket)
+        b = bands.setdefault(lo, {"from": lo, "to": lo + bucket, "likes": 0, "matches": 0})
+        b["likes"] += 1
+        b["matches"] += 1 if row["id"] in matched_ids else 0
+    band_list = sorted(bands.values(), key=lambda b: -b["from"])
+    for b in band_list:
+        b["rate"] = _rate(b["matches"], b["likes"])
+    return {"tracking": True, "since": since, "likes": likes, "matches": matches,
+            "rate": _rate(matches, likes),
+            "last7": {"likes": likes7, "matches": matches7, "rate": _rate(matches7, likes7)},
+            "bands": band_list, "last_snapshot_at": t["last_snapshot_at"],
+            "visible_matches": t["last_seen_count"]}
 
 
 @_safe([])

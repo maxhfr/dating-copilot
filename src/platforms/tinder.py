@@ -340,6 +340,14 @@ class Tinder(Platform):
             out.append({"id": href.rsplit("/", 1)[-1], "name": name})
         return out
 
+    async def snapshot_matches(self) -> list[dict] | None:
+        """The match tiles in the sidebar, read in place: no clicks and no
+        navigation, so it changes nothing about how the session looks."""
+        try:
+            return await self._links_in_sidebar()
+        except Exception:
+            return None
+
     async def list_matches(self) -> list[dict]:
         """Every match thread, from BOTH sidebar tabs.
 
