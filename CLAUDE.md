@@ -47,12 +47,12 @@ run.sh                ./run.sh swipe
 0. **Code filters, free:** age 26-34, distance <= 20 km, height <= 173 cm
    if stated, reject obese, min 2 photos. Smoking and drinking filters are
    deliberately **off**.
-1. **Stage 1, text only, Haiku 4.5 (~300 tokens):** language (French or
+1. **Stage 1, text only, Haiku 5.5 (~300 tokens):** language (French or
    English OK, assume French if unstated), profile quality, text scores. May
    only reject on `language` and `profile_quality`. Do not let the model
    reject on anything else (it over-rejected on intent, pets, and did age
    arithmetic wrong; those moved to code).
-2. **Stage 2, vision, Haiku 4.5 (~5k tokens):** scores against scoring.yaml.
+2. **Stage 2, vision, Haiku 5.5 (~5k tokens):** scores against scoring.yaml.
    Like if score >= `auto_like`.
 
 Scoring weights (sum to 100): photo 70 = body_type 30, hair 16, eyes 12,
