@@ -17,7 +17,6 @@ import secrets_store
 import settings
 from controller import SessionController
 
-ROOT = Path(__file__).resolve().parent.parent
 PAGE = (Path(__file__).parent / "ui.html")
 
 
@@ -122,7 +121,6 @@ def create_app(controller: SessionController | None = None,
                              and os.environ.get("TELEGRAM_CHAT_ID")),
             "chromium": browser_setup.chromium_installed(),
             "tinder_session": (runlog.home() / "tinder-session").exists(),
-            "env_file": (ROOT / ".env").exists(),
         })
 
     return app

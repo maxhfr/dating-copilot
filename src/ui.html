@@ -493,7 +493,7 @@ async function loadSetup() {
   const s = (await api("/api/setup")).data; $("checks").textContent = "";
   $("kcnote").textContent = s.keychain ? "Keys are stored in your system keychain and never shown again." : "No keychain available here: put keys in .env in the project folder.";
   [["Anthropic API key", s.anthropic_key], ["Telegram (optional)", s.telegram],
-   ["Browser (Chromium) installed", s.chromium], ["Tinder session saved", s.tinder_session], [".env file present", s.env_file]].forEach(([t, ok]) => {
+   ["Browser (Chromium) installed", s.chromium], ["Tinder session saved", s.tinder_session]].forEach(([t, ok]) => {
     const li = el("li"); li.appendChild(el("span", "glyph" + (ok ? " ok" : ""), ok ? "✓" : "–")); li.appendChild(el("span", "", t)); $("checks").appendChild(li); });
 }
 loadThreshold(); refresh(); setInterval(refresh, 2500);
