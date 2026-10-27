@@ -148,6 +148,14 @@ app, choose **Open**, and confirm. If macOS still refuses:
   (it serves the UI and seeds its config); the macOS `.app` bundle itself has
   not been built yet.
 
+## Download
+
+The latest apps are on the repository's **Releases** page (right-hand side of the
+GitHub front page): `DatingCopilot-mac.zip` and `DatingCopilot-windows.zip`.
+To publish a new version: **Actions > build > Run workflow**, type a version
+such as `v0.1.0` in `release_tag`, and run it. About 3 minutes later the release
+appears with both files.
+
 ## Windows
 
 The same app runs on Windows (the browser window comes from Edge WebView2).
